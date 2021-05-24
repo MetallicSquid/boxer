@@ -2,7 +2,7 @@ import tkinter as tk
 import argparse
 import os
 
-from elements import ColourPicker, ActionHandler
+from ui_elements import ColourPicker, ActionHandler
 
 root = tk.Tk()
 

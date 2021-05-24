@@ -5,7 +5,8 @@ import os
 
 def setup_image_dir():
     directory = filedialog.askdirectory()
-    history_dict = {}
+    stacks = {}
+    labels = {"blue": "blue", "lime green": "lime green", "yellow": "yellow", "red": "red", "deep pink": "deep pink"}
 
     image_paths = []
     image_types = [".jpg", ".png", ".bmp"]
@@ -13,7 +14,8 @@ def setup_image_dir():
         if os.path.splitext(file)[1] in image_types:
             image_path = os.path.join(directory, file)
             image_paths.append(image_path)
-            history_dict[file] = {'undo': [], 'redo': []}
+            stacks[file] = {'undo': [], 'redo': []}
+    history = [stacks, labels]
 
     history_path = os.path.join(directory, "box_history.json")
     mode = "w+"
@@ -23,21 +25,22 @@ def setup_image_dir():
     with open(history_path, mode) as history_file:
         content = history_file.read()
         if content:
-            history_dict = json.loads(content)
+            history = json.loads(content)
         else:
-            json.dumps(history_dict)
+            json.dumps(history)
 
-    return image_paths, history_dict, history_path
+    return image_paths, history, history_path
 
 
-def write_history(history_path: str, editable_images: list):
-    new_history = {}
+def write_history(history_path: str, editable_images: list, label_dict: dict):
+    new_stack = {}
     for image in editable_images:
         filename = os.path.basename(image.image_path)
         undo_stack = image.undo_stack
         redo_stack = image.redo_stack
-        new_history[filename] = {'undo': undo_stack, 'redo': redo_stack}
+        new_stack[filename] = {'undo': undo_stack, 'redo': redo_stack}
 
+    new_history = [new_stack, label_dict]
     with open(history_path, "w") as history_file:
         history_file.write(json.dumps(new_history))
 

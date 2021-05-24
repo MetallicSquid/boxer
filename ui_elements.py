@@ -3,6 +3,7 @@ import tkinter as tk
 from file_io import setup_image_dir, write_history
 from canvas import ActiveCanvas
 
+
 class ActionHandler:
     def __init__(self, canvas, colour_picker,  buttons: tuple):
         self.active_canvas = ActiveCanvas(canvas, colour_picker)
@@ -29,7 +30,6 @@ class ActionHandler:
 
     # Button state checks
     def upon_stack_change(self, _var, _index, _mode):
-        print("triggered")
         self.undo_redo_state()
         self.update_history()
 
@@ -63,9 +63,12 @@ class ActionHandler:
 
     # Button pressed events
     def open_pressed(self):
-        image_paths, history_dict, history_path = setup_image_dir()
+        if self.history_path:
+            self.update_history()
+        image_paths, history, history_path = setup_image_dir()
         self.history_path = history_path
-        self.active_canvas.activate_canvas(image_paths, history_dict)
+        self.active_canvas.activate_canvas(image_paths, history[0])
+        self.colour_picker.remap_colour_picker(history[1])
 
     def undo_pressed(self):
         self.active_canvas.undo_action()
@@ -87,10 +90,9 @@ class ActionHandler:
 
     # History logging
     def update_history(self):
-        print(self.history_path)
         self.active_canvas.active_image.undo_stack = self.active_canvas.cur_undo_stack
         self.active_canvas.active_image.redo_stack = self.active_canvas.cur_redo_stack
-        write_history(self.history_path, self.active_canvas.editable_images)
+        write_history(self.history_path, self.active_canvas.editable_images, self.colour_picker.colour_label_dict)
 
 
 class ColourPicker:
@@ -100,24 +102,44 @@ class ColourPicker:
         self.list_box = list_box
         list_box.bind("<<ListboxSelect>>", self.on_selection)
 
-        self.label_dict = {}
+
+        self.index_label_dict = {}
+        self.colour_label_dict = {}
         for i in range(len(colour_list)):
             list_box.insert(i, colour_list[i])
-            self.label_dict[i] = colour_list[i]
+            self.index_label_dict[i] = colour_list[i]
+            self.colour_label_dict[colour_list[i]] = colour_list[i]
         list_box.selection_set(0)
 
         self.selection = list_box.curselection()[0]
         self.colour = list_box.get(self.selection)
-        self.label = self.label_dict[list_box.curselection()[0]]
+        self.label = self.index_label_dict[self.selection]
         self.entry.insert(0, self.label)
 
-    def on_entry_edit(self):
-        self.label_dict[self.selection] = self.entry.get()
-        self.label = self.label_dict[self.selection]
-
-    def on_selection(self, _event: tk.Event):
+    def update_colour_picker(self):
         self.selection = self.list_box.curselection()[0]
         self.colour = self.list_box.get(self.selection)
-        self.label = self.label_dict[self.selection]
+        self.label = self.index_label_dict[self.selection]
         self.entry.delete(0, tk.END)
         self.entry.insert(0, self.label)
+
+    def remap_colour_picker(self, labels: dict):
+        self.colour_label_dict = labels
+        self.index_label_dict = {}
+        self.list_box.delete(0, tk.END)
+
+        count = 0
+        for key, value in labels.items():
+            self.list_box.insert(count, key)
+            self.index_label_dict[count] = value
+            count += 1
+        self.list_box.selection_set(0)
+        self.update_colour_picker()
+
+    def on_entry_edit(self):
+        self.index_label_dict[self.selection] = self.entry.get()
+        self.label = self.index_label_dict[self.selection]
+        self.colour_label_dict[self.colour] = self.label
+
+    def on_selection(self, _event: tk.Event):
+        self.update_colour_picker()

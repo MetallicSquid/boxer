@@ -54,11 +54,15 @@ class ActiveCanvas:
         self.current_label = None
 
     def activate_canvas(self, image_paths: list, history_dict: dict):
+        if self.active_image:
+            self.active_image.deactivate_image()
+            self.editable_images = []
+            self.image_pointer = 0
+
         for image_path in image_paths:
             editable_image = EditableImage(image_path, self.canvas)
             image_history = history_dict[os.path.basename(image_path)]
             if image_history['undo'] or image_history['redo']:
-                print(f"History check triggered for: {os.path.basename(image_path)}")
                 editable_image.undo_stack = image_history['undo']
                 editable_image.redo_stack = image_history['redo']
             self.editable_images.append(editable_image)
