@@ -1,26 +1,37 @@
 import tkinter as tk
 
+from file_io import setup_image_dir, write_history
+from canvas import ActiveCanvas
 
-class ButtonHandler:
-    def __init__(self, active_canvas, buttons: tuple):
-        self.active_canvas = active_canvas
-        self.active_canvas.stack_populated.trace_add("write", self.upon_stack_change)
+class ActionHandler:
+    def __init__(self, canvas, colour_picker,  buttons: tuple):
+        self.active_canvas = ActiveCanvas(canvas, colour_picker)
+        self.active_canvas.stack_change.trace_add("write", self.upon_stack_change)
+        self.history_path = None
 
-        self.undo_button = buttons[0]
+        self.canvas = canvas
+        self.colour_picker = colour_picker
+
+        self.open_button = buttons[0]
+        self.open_button.configure(command=self.open_pressed)
+
+        self.undo_button = buttons[1]
         self.undo_button.configure(command=self.undo_pressed)
-        self.redo_button = buttons[1]
+        self.redo_button = buttons[2]
         self.redo_button.configure(command=self.redo_pressed)
         self.undo_redo_state()
 
-        self.prev_button = buttons[2]
+        self.prev_button = buttons[3]
         self.prev_button.configure(command=self.prev_pressed)
-
-        self.next_button = buttons[3]
+        self.next_button = buttons[4]
         self.next_button.configure(command=self.next_pressed)
         self.prev_next_state()
 
+    # Button state checks
     def upon_stack_change(self, _var, _index, _mode):
+        print("triggered")
         self.undo_redo_state()
+        self.update_history()
 
     def undo_redo_state(self):
         undo_stack = self.active_canvas.cur_undo_stack
@@ -50,23 +61,36 @@ class ButtonHandler:
         elif self.next_button['state'] == tk.DISABLED and index != image_no:
             self.next_button['state'] = tk.NORMAL
 
+    # Button pressed events
+    def open_pressed(self):
+        image_paths, history_dict, history_path = setup_image_dir()
+        self.history_path = history_path
+        self.active_canvas.activate_canvas(image_paths, history_dict)
+
     def undo_pressed(self):
         self.active_canvas.undo_action()
         self.undo_redo_state()
+        self.update_history()
 
     def redo_pressed(self):
         self.active_canvas.redo_action()
         self.undo_redo_state()
+        self.update_history()
 
     def prev_pressed(self):
         self.active_canvas.shift_image(-1)
         self.prev_next_state()
-        # self.undo_redo_state()
 
     def next_pressed(self):
         self.active_canvas.shift_image(1)
         self.prev_next_state()
-        # self.undo_redo_state()
+
+    # History logging
+    def update_history(self):
+        print(self.history_path)
+        self.active_canvas.active_image.undo_stack = self.active_canvas.cur_undo_stack
+        self.active_canvas.active_image.redo_stack = self.active_canvas.cur_redo_stack
+        write_history(self.history_path, self.active_canvas.editable_images)
 
 
 class ColourPicker:

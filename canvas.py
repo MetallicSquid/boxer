@@ -5,6 +5,7 @@ import os
 
 class EditableImage:
     def __init__(self, image_path, canvas: tk.Canvas):
+        self.image_path = image_path
         self.canvas = canvas
 
         load = Image.open(image_path)
@@ -29,40 +30,45 @@ class EditableImage:
 
 
 class ActiveCanvas:
-    def __init__(self, input_path, master_frame: tk.Frame, colour_picker):
-        self.canvas = tk.Canvas(master_frame, width=1280, height=720, bg="white", bd=5, relief=tk.GROOVE)
-        self.canvas.pack(side=tk.TOP)
-
+    def __init__(self, canvas, colour_picker):
+        self.canvas = canvas
+        self.canvas.bind("<ButtonPress-1>", self.on_mouse_press)
+        self.canvas.bind("<B1-Motion>", self.on_mouse_move)
+        self.canvas.bind("<ButtonRelease-1>", self.on_mouse_release)
         self.colour_picker = colour_picker
+
         self.colour_picker.entry.bind("<KeyRelease>", self.update_labels)
 
         self.image_pointer = 0
         self.editable_images = []
-        self.gather_images(input_path)
-        self.active_image = self.editable_images[self.image_pointer]
-        self.active_image.activate_image()
-
-        self.canvas.bind("<ButtonPress-1>", self.on_mouse_press)
-        self.canvas.bind("<B1-Motion>", self.on_mouse_move)
-        self.canvas.bind("<ButtonRelease-1>", self.on_mouse_release)
+        # TODO: Add a placeholder image as the initial active image
+        self.active_image = None
 
         self.cur_undo_stack = []
         self.cur_redo_stack = []
-        self.stack_populated = tk.BooleanVar()
+        self.stack_change = tk.BooleanVar()
 
         self.start_x, self.start_y = None, None
         self.current_x, self.current_y = None, None
         self.current_box = None
         self.current_label = None
 
-    # FIXME: This should be handled in file_io and passed in as a list
-    def gather_images(self, input_path):
-        files = os.listdir(input_path)
-        for file in files:
-            extension = os.path.splitext(file)[1]
-            if extension == ".jpg" or extension == ".png":
-                image_path = os.path.join(input_path, file)
-                self.editable_images.append(EditableImage(image_path, self.canvas))
+    def activate_canvas(self, image_paths: list, history_dict: dict):
+        for image_path in image_paths:
+            editable_image = EditableImage(image_path, self.canvas)
+            image_history = history_dict[os.path.basename(image_path)]
+            if image_history['undo'] or image_history['redo']:
+                print(f"History check triggered for: {os.path.basename(image_path)}")
+                editable_image.undo_stack = image_history['undo']
+                editable_image.redo_stack = image_history['redo']
+            self.editable_images.append(editable_image)
+        self.active_image = self.editable_images[self.image_pointer]
+        self.active_image.activate_image()
+
+        self.cur_undo_stack = self.active_image.undo_stack
+        self.cur_redo_stack = self.active_image.redo_stack
+
+        self.stack_change.set(not self.stack_change.get())
 
     def shift_image(self, delta: int):
         self.active_image.undo_stack = self.cur_undo_stack
@@ -76,8 +82,8 @@ class ActiveCanvas:
         self.cur_undo_stack = self.active_image.undo_stack
         self.cur_redo_stack = self.active_image.redo_stack
 
-        # FIXME: This whole trace system feels very hack-ish (it works, but I don't like it)
-        self.stack_populated.set(not self.stack_populated)
+        # FIXME: This whole trace system feels very hack-ish, this should probably be changed in the future
+        self.stack_change.set(not self.stack_change)
 
     def find_object_ref(self, coords: list):
         for object_ref in self.canvas.find_all():
@@ -161,7 +167,6 @@ class ActiveCanvas:
         self.current_box = None
         self.cur_redo_stack = []
 
-        if not self.stack_populated.get():
-            self.stack_populated.set(True)
+        self.stack_change.set(not self.stack_change.get())
 
 
