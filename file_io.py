@@ -3,6 +3,30 @@ import json
 import os
 
 
+class HistoryManager:
+    def __init__(self, history_path: str, history_stack: dict, labels: dict):
+        self.history_path = history_path
+        self.history_stack = history_stack
+        self.labels = labels
+
+    # FIXME: The distinction between update_labels and update_canvas is arbitrary as the history is overwritten anyway
+    def update_labels(self, new_labels: dict):
+        self.labels = new_labels
+        self.write_history()
+
+    def update_canvas(self, editable_images: list):
+        new_stack = {}
+        for image in editable_images:
+            filename = os.path.basename(image.image_path)
+            new_stack[filename] = {"undo": image.undo_stack, "redo": image.redo_stack}
+        self.history_stack = new_stack
+        self.write_history()
+
+    def write_history(self):
+        with open(self.history_path, "w") as history_file:
+            history_file.write(json.dumps([self.history_stack, self.labels]))
+
+
 # Creates / loads the history for a chosen directory
 def setup_image_dir():
     directory = filedialog.askdirectory()
@@ -22,8 +46,9 @@ def setup_image_dir():
         if not image_paths:
             return "invalid"
 
-        history = [stacks, default_labels]
+        json_history = [stacks, default_labels]
         history_path = os.path.join(directory, "boxer_history.json")
+
         mode = "w+"
         if os.path.exists(history_path):
             mode = "r"
@@ -31,25 +56,12 @@ def setup_image_dir():
         with open(history_path, mode) as history_file:
             content = history_file.read()
             if content:
-                history = json.loads(content)
+                json_history = json.loads(content)
             else:
-                json.dumps(history)
+                json.dumps(json_history)
 
-        return image_paths, history, history_path
+        history_manager = HistoryManager(history_path, json_history[0], json_history[1])
+
+        return image_paths, history_manager, directory
     else:
         return "cancelled"
-
-
-# Writes the history to the .json file
-def write_history(history_path: str, editable_images: list, label_dict: dict):
-    new_stack = {}
-    for image in editable_images:
-        filename = os.path.basename(image.image_path)
-        undo_stack = image.undo_stack
-        redo_stack = image.redo_stack
-        new_stack[filename] = {'undo': undo_stack, 'redo': redo_stack}
-
-    new_history = [new_stack, label_dict]
-    with open(history_path, "w") as history_file:
-        history_file.write(json.dumps(new_history))
-

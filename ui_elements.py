@@ -1,18 +1,20 @@
 import tkinter as tk
 
-from file_io import setup_image_dir, write_history
+from file_io import HistoryManager, setup_image_dir
 from canvas import ActiveCanvas
 
 
-# Manages the button events
-class ActionHandler:
-    def __init__(self, canvas, colour_picker,  buttons: tuple):
-        self.active_canvas = ActiveCanvas(canvas, colour_picker)
-        self.active_canvas.stack_change.trace_add("write", self.upon_stack_change)
-        self.history_path = None
-
+# Manages the ui events
+class UIHandler:
+    def __init__(self, canvas, colour_picker,  buttons: tuple, status_bar):
         self.canvas = canvas
         self.colour_picker = colour_picker
+        self.status_bar = status_bar
+        self.history_manager = None
+
+        self.active_canvas = ActiveCanvas(canvas, colour_picker, status_bar)
+        self.active_canvas.stack_change.trace_add("write", self.on_stack_change)
+        self.history_path = None
 
         self.open_button = buttons[0]
         self.open_button.configure(command=self.open_pressed)
@@ -34,7 +36,7 @@ class ActionHandler:
         self.prev_next_state()
 
     # Button state checks
-    def upon_stack_change(self, _var, _index, _mode):
+    def on_stack_change(self, _var, _index, _mode):
         self.undo_redo_export_state()
         self.prev_next_state()
 
@@ -81,24 +83,23 @@ class ActionHandler:
         elif dir_info == "cancelled":
             print("The `🔍 Open` action was cancelled")
         else:
-            image_paths, history, history_path = setup_image_dir()
-            if self.history_path:
-                self.update_history()
-            self.history_path = history_path
-            self.active_canvas.activate_canvas(image_paths, history[0])
-            self.colour_picker.remap_colour_picker(history[1])
+            image_paths, history_manager, directory = setup_image_dir()
+            self.history_manager = history_manager
+            # if self.history_path:
+            #     self.update_history()
+            self.active_canvas.activate_canvas(image_paths, history_manager)
+            self.colour_picker.remap_colour_picker(history_manager)
             self.undo_redo_export_state()
             self.prev_next_state()
+            self.status_bar.update_action(f"Opened {directory} containing {len(image_paths)} valid images.")
 
     def undo_pressed(self):
         self.active_canvas.undo_action()
         self.undo_redo_export_state()
-        self.update_history()
 
     def redo_pressed(self):
         self.active_canvas.redo_action()
         self.undo_redo_export_state()
-        self.update_history()
 
     def prev_pressed(self):
         self.active_canvas.shift_image(-1)
@@ -109,13 +110,7 @@ class ActionHandler:
         self.prev_next_state()
 
     def export_pressed(self):
-        exporter = Exporter()
-
-    # History logging
-    def update_history(self):
-        self.active_canvas.active_image.undo_stack = self.active_canvas.cur_undo_stack
-        self.active_canvas.active_image.redo_stack = self.active_canvas.cur_redo_stack
-        write_history(self.history_path, self.active_canvas.editable_images, self.colour_picker.colour_label_dict)
+        print("Export")
 
 
 # Manages the colour listbox and label selector
@@ -124,6 +119,8 @@ class ColourPicker:
         self.colour_list = colour_list
         self.entry = entry
         self.list_box = list_box
+        self.history_manager = None
+
         list_box.bind("<<ListboxSelect>>", self.on_selection)
 
         self.index_label_dict = {}
@@ -146,13 +143,14 @@ class ColourPicker:
         self.entry.delete(0, tk.END)
         self.entry.insert(0, self.label)
 
-    def remap_colour_picker(self, labels: dict):
-        self.colour_label_dict = labels
+    def remap_colour_picker(self, history_manager):
+        self.history_manager = history_manager
+        self.colour_label_dict = history_manager.labels
         self.index_label_dict = {}
         self.list_box.delete(0, tk.END)
 
         count = 0
-        for key, value in labels.items():
+        for key, value in history_manager.labels.items():
             self.list_box.insert(count, key)
             self.index_label_dict[count] = value
             count += 1
@@ -163,14 +161,20 @@ class ColourPicker:
         self.index_label_dict[self.selection] = self.entry.get()
         self.label = self.index_label_dict[self.selection]
         self.colour_label_dict[self.colour] = self.label
+        self.history_manager.update_labels(self.colour_label_dict)
 
     def on_selection(self, _event: tk.Event):
         self.update_colour_picker()
 
 
-# Manages the exporter pop-up window
-class Exporter:
-    def __init__(self):
-        popup = tk.Toplevel()
-        temp_label = tk.Label(popup, text="Hello World", font="Helvetica 30 bold")
-        temp_label.grid(row=0, column=0)
+# The status bar that shows the most recent action and information about the current file
+class StatusBar:
+    def __init__(self, action_bar: tk.Label, info_bar: tk.Label):
+        self.action_bar = action_bar
+        self.info_bar = info_bar
+
+    def update_action(self, action_string: str):
+        self.action_bar.configure(text=action_string)
+
+    def update_info(self, info_string: str):
+        self.info_bar.configure(text=info_string)
