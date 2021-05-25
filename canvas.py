@@ -3,6 +3,7 @@ from PIL import ImageTk, Image
 import os
 
 
+# Represents each instance of an image that can be edited
 class EditableImage:
     def __init__(self, image_path, canvas: tk.Canvas):
         self.image_path = image_path
@@ -28,20 +29,14 @@ class EditableImage:
     def deactivate_image(self):
         self.canvas.delete("all")
 
-
+# Represents the canvas itself and the actions that can be performed with it
 class ActiveCanvas:
     def __init__(self, canvas, colour_picker):
         self.canvas = canvas
-        self.canvas.bind("<ButtonPress-1>", self.on_mouse_press)
-        self.canvas.bind("<B1-Motion>", self.on_mouse_move)
-        self.canvas.bind("<ButtonRelease-1>", self.on_mouse_release)
         self.colour_picker = colour_picker
-
-        self.colour_picker.entry.bind("<KeyRelease>", self.update_labels)
 
         self.image_pointer = 0
         self.editable_images = []
-        # TODO: Add a placeholder image as the initial active image
         self.active_image = None
 
         self.cur_undo_stack = []
@@ -53,11 +48,54 @@ class ActiveCanvas:
         self.current_box = None
         self.current_label = None
 
+        self.draw_startup()
+
+    # Placeholder screens
+    def draw_placeholder(self, title, subtitle, description):
+        self.canvas.configure(width=500, height=300)
+        self.deactivate_canvas()
+        self.canvas.create_text(20, 20, text=title, fill="black", font="Helvetica 30 bold", anchor=tk.NW)
+        self.canvas.create_text(20, 70, text=subtitle, fill="gray", font="Helvetica 20 italic", anchor=tk.NW)
+        self.canvas.create_text(20, 120, text=description, fill="black", font="Helvetica 15", anchor=tk.NW)
+
+    def draw_startup(self):
+        title = "Boxer 🥊"
+        subtitle = "The simple bounding box tool"
+        description = "To start annotating images, press the `🔍 Open`\nbutton and pick a relevant directory. If you need\nany help, please reference the docs. Enjoy!"
+        self.draw_placeholder(title, subtitle, description)
+
+    def draw_invalid(self):
+        title = "Boxer 🥊"
+        subtitle = "The simple bounding box tool"
+        description = "Sorry, the directory that you picked is invalid,\nit needs to contain either `.jpg`, `.png` or\n`.bmp` images. If you need any help, please\nreference the docs. Enjoy!"
+        self.draw_placeholder(title, subtitle, description)
+
+    def reset_canvas(self):
+        self.canvas.delete("all")
+        self.cur_undo_stack = []
+        self.cur_redo_stack = []
+        self.editable_images = []
+        self.image_pointer = 0
+        self.current_box = None
+        self.current_label = None
+
+    def deactivate_canvas(self):
+        self.canvas.unbind("<ButtonPress-1>")
+        self.canvas.unbind("<B1-Motion>")
+        self.canvas.unbind("<ButtonRelease-1>")
+        self.colour_picker.entry.unbind("<KeyRelease>")
+        self.reset_canvas()
+
+        self.stack_change.set(not self.stack_change.get())
+
     def activate_canvas(self, image_paths: list, history_dict: dict):
         if self.active_image:
-            self.active_image.deactivate_image()
-            self.editable_images = []
-            self.image_pointer = 0
+            self.deactivate_canvas()
+
+        self.canvas.bind("<ButtonPress-1>", self.on_mouse_press)
+        self.canvas.bind("<B1-Motion>", self.on_mouse_move)
+        self.canvas.bind("<ButtonRelease-1>", self.on_mouse_release)
+        self.colour_picker.entry.bind("<KeyRelease>", self.update_labels)
 
         for image_path in image_paths:
             editable_image = EditableImage(image_path, self.canvas)
@@ -87,7 +125,7 @@ class ActiveCanvas:
         self.cur_redo_stack = self.active_image.redo_stack
 
         # FIXME: This whole trace system feels very hack-ish, this should probably be changed in the future
-        self.stack_change.set(not self.stack_change)
+        self.stack_change.set(not self.stack_change.get())
 
     def find_object_ref(self, coords: list):
         for object_ref in self.canvas.find_all():
@@ -104,6 +142,7 @@ class ActiveCanvas:
 
         return ref_list
 
+    # Undo and redo events
     def undo_action(self):
         undo = self.cur_undo_stack.pop()
         self.canvas.delete(self.find_object_ref(undo[0]))
@@ -172,5 +211,3 @@ class ActiveCanvas:
         self.cur_redo_stack = []
 
         self.stack_change.set(not self.stack_change.get())
-
-
