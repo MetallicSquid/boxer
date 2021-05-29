@@ -1,7 +1,7 @@
 import tkinter as tk
 from PIL import ImageTk, Image
-from PIL.ExifTags import TAGS
 import os
+from datetime import date
 from collections import defaultdict
 
 
@@ -21,7 +21,16 @@ class EditableImage:
         self.height = self.image.height
         self.file_name = os.path.basename(image_path)
         # self.license
-        # self.date_captured = self.get_date_captured()
+        self.date_captured = self.get_date_captured()
+
+    def get_date_captured(self):
+        exif_data = self.image.getexif()
+        for tag_id in exif_data:
+            if tag_id == 36867:
+                return exif_data.get(tag_id)
+
+        print(f"Date_created could not be found for {self.file_name}, defaulting to {date.today()}")
+        return date.today()
 
     # Undo / redo stack actions
     def pop_undo(self):

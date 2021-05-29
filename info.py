@@ -29,7 +29,6 @@ class InfoManager:
     # TODO: Handle annotation segmentations
     # TODO: Handle annotation iscrowd
     # TODO: Handle image license
-    # TODO: Handle image date_captured
     # TODO: Handle category supercategory
 
     # Fills all possible fields based on accessible information
@@ -63,7 +62,7 @@ class InfoManager:
                 annotation_counter += 1
 
             image = {"id": image_counter, "width": editable_image.width, "height": editable_image.height,
-                     "file_name": editable_image.file_name, "license": None, "date_captured": None}
+                     "file_name": editable_image.file_name, "license": None, "date_captured": editable_image.date_captured}
             self.images.append(image)
             image_counter += 1
 
