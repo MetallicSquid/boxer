@@ -5,15 +5,44 @@ from ui_elements import ColourPicker, UIHandler, StatusBar
 root = tk.Tk()
 root.title("Boxer")
 
-main_frame = tk.Frame(root)
-main_frame.pack(side=tk.TOP, expand=True)
+# TODO: These fields don't do anything useful yet
+info_frame = tk.Frame(root)
+info_frame.pack(side=tk.TOP)
 
-image_frame = tk.Frame(main_frame)
+year_label = tk.Label(info_frame, text="Year: ", font="Helvetica 10")
+year_label.grid(row=0, column=0)
+year_entry = tk.Entry(info_frame, width=4)
+year_entry.grid(row=0, column=1)
+
+version_label = tk.Label(info_frame, text="Version: ", font="Helvetica 10")
+version_label.grid(row=1, column=0)
+version_entry = tk.Entry(info_frame, width=6)
+version_entry.grid(row=1, column=1)
+
+description_label = tk.Label(info_frame, text="Description: ", font="Helvetica 10")
+description_label.grid(row=0, column=2, rowspan=2)
+description_entry = tk.Text(info_frame, width=20, height=3, wrap=tk.WORD)
+description_entry.grid(row=0, column=3, rowspan=2)
+
+contributor_label = tk.Label(info_frame,  text="Contributor: ", font="Helvetica 10")
+contributor_label.grid(row=0, column=4, rowspan=2)
+contributor_entry = tk.Text(info_frame, width=20, height=3, wrap=tk.WORD)
+contributor_entry.grid(row=0, column=5, rowspan=2)
+
+url_label = tk.Label(info_frame, text="Project Url: ", font="Helvetica 10")
+url_label.grid(row=0, column=6, rowspan=2)
+url_entry = tk.Text(info_frame, width=20, height=3)
+url_entry.grid(row=0, column=7, rowspan=2)
+
+central_frame = tk.Frame(root)
+central_frame.pack(side=tk.TOP, expand=True)
+
+image_frame = tk.Frame(central_frame)
 image_frame.pack(side=tk.LEFT, expand=True)
-canvas = tk.Canvas(image_frame, width=500, height=300, bg="white", bd=5, relief=tk.GROOVE)
+canvas = tk.Canvas(image_frame, width=600, height=300, bg="white", bd=5, relief=tk.GROOVE)
 canvas.pack(fill=tk.BOTH, expand=True)
 
-tool_frame = tk.Frame(main_frame)
+tool_frame = tk.Frame(central_frame)
 tool_frame.pack(side=tk.LEFT)
 
 colour_list = ["blue", "lime green", "yellow", "red", "deep pink"]
@@ -33,9 +62,7 @@ b_prev = tk.Button(tool_frame, text="⏮️ Prev")
 b_prev.grid(row=5, column=1)
 b_next = tk.Button(tool_frame, text="⏭ Next️")
 b_next.grid(row=5, column=2)
-b_info = tk.Button(tool_frame, text="📋 Info")
-b_info.grid(row=6, column=1, columnspan=2)
-buttons = (b_open, b_undo, b_redo, b_prev, b_next, b_info)
+buttons = (b_open, b_undo, b_redo, b_prev, b_next)
 
 status_frame = tk.Frame(root, bd=1, relief=tk.SUNKEN)
 status_frame.pack(side=tk.BOTTOM, fill=tk.X)
