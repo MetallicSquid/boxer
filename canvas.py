@@ -20,7 +20,6 @@ class EditableImage:
         self.width = self.image.width
         self.height = self.image.height
         self.file_name = os.path.basename(image_path)
-        # self.license
         self.date_captured = self.get_date_captured()
 
     def get_date_captured(self):
@@ -49,11 +48,10 @@ class EditableImage:
     def activate_image(self):
         self.canvas.configure(width=self.width, height=self.height)
         self.canvas.create_image(0, 0, image=self.image_render, anchor=tk.NW)
-        for draw_coords in self.undo_stack:
-            self.canvas.create_rectangle(draw_coords[0][0], draw_coords[0][1], draw_coords[0][2], draw_coords[0][3],
-                                         width=4, outline=draw_coords[2])
-            self.canvas.create_text(draw_coords[1][1][0], draw_coords[1][1][1], text=draw_coords[1][0],
-                                    fill=draw_coords[2], font="Helvetica 15 bold")
+        for undo in self.undo_stack:
+            self.canvas.create_rectangle(undo[0][0], undo[0][1], undo[0][2], undo[0][3], width=4, outline=undo[2])
+            self.canvas.create_text((undo[0][0]+undo[0][2])/2, undo[0][3]+15, text=undo[1], fill=undo[2],
+                                    font="Helvetica 15 bold")
 
     def deactivate_image(self):
         self.canvas.delete("all")
@@ -164,11 +162,10 @@ class ImageManager:
         for annotation in annotations:
             coords = [annotation["bbox"][0], annotation["bbox"][1], annotation["bbox"][0]+annotation["bbox"][2],
                       annotation["bbox"][1]+annotation["bbox"][3]]
-            label_coords = [(coords[0]+coords[2])/2, coords[3]+15]
             label = id_category_map[annotation["category_id"]]
             colour = id_colour_map[label]
 
-            bbox_dict[annotation["image_id"]].append((coords, [label, label_coords], colour))
+            bbox_dict[annotation["image_id"]].append((coords, label, colour))
 
         for image in images:
             path = os.path.join(directory, image["file_name"])
@@ -204,7 +201,8 @@ class ImageManager:
         for object_ref in self.canvas.find_all():
             if self.canvas.coords(object_ref) == coords:
                 return object_ref
-        raise IndexError(f"The requested object, with coords {coords}, does not exist")
+
+        return None
 
     def find_label_refs(self, label: str):
         ref_list = []
@@ -219,22 +217,18 @@ class ImageManager:
     def undo_action(self):
         undo = self.active_image.pop_undo()
         self.canvas.delete(self.find_object_ref(undo[0]))
-        self.canvas.delete(self.find_object_ref(undo[1][1]))
-        self.status_bar.update_action(f"Removed `{undo[1][0]}` bounding box at {undo[0]}")
+        self.canvas.delete(self.find_object_ref([(undo[0][0]+undo[0][2])/2, undo[0][3]+15]))
+        self.status_bar.update_action(f"Removed `{undo[1]}` bounding box at {undo[0]}")
         self.active_image.append_redo(undo)
 
     def redo_action(self):
         redo = self.active_image.pop_redo()
-        redo_box = self.canvas.create_rectangle(redo[0][0], redo[0][1], redo[0][2], redo[0][3], width=4,
-                                                outline=redo[2])
-        redo_label = self.canvas.create_text(redo[1][1][0], redo[1][1][1], text=redo[1][0], fill=redo[2],
-                                             font="Helvetica 15 bold")
-        self.status_bar.update_action(f"Created `{redo[1][0]}` bounding box at {redo[0]}")
-        self.active_image.append_undo((self.canvas.coords(redo_box),
-                                       [self.canvas.itemcget(redo_label, "text"), self.canvas.coords(redo_label)],
-                                       self.canvas.itemcget(redo_box, "outline")))
+        self.canvas.create_rectangle(redo[0][0], redo[0][1], redo[0][2], redo[0][3], width=4, outline=redo[2])
+        self.canvas.create_text((redo[0][0]+redo[0][2])/2, redo[0][3]+15, text=redo[1][0], fill=redo[2],
+                                font="Helvetica 15 bold")
+        self.status_bar.update_action(f"Created `{redo[1]} bounding box at {redo[0]}")
+        self.active_image.append_undo(redo)
 
-    # FIXME: I think the UIHandler should be managing this, not the canvas
     # Event Bindings
     def update_labels(self, _event: tk.Event):
         old_label = self.colour_picker.label
@@ -247,11 +241,11 @@ class ImageManager:
 
         for image in self.editable_images:
             for undo in image.undo_stack:
-                if undo[1][0] == old_label:
-                    undo[1][0] = new_label
+                if undo[1] == old_label:
+                    undo[1] = new_label
             for redo in image.redo_stack:
-                if redo[1][0] == old_label:
-                    redo[1][0] = new_label
+                if redo[1] == old_label:
+                    redo[1] = new_label
 
         self.status_bar.update_action(f"Changed {self.colour_picker.colour} label from `{old_label}` to `{new_label}`.")
 
@@ -270,9 +264,8 @@ class ImageManager:
         self.canvas.coords(self.current_label, ((self.start_x+self.current_x)/2, self.current_y+15))
 
     def on_mouse_release(self, _event: tk.Event):
-        self.active_image.append_undo((self.canvas.coords(self.current_box),
-                                       [self.colour_picker.label, self.canvas.coords(self.current_label)],
-                                       self.canvas.itemcget(self.current_box, "outline")))
+        self.active_image.append_undo([self.canvas.coords(self.current_box), self.colour_picker.label,
+                                       self.colour_picker.colour])
 
         self.status_bar.update_action(f"Created `{self.colour_picker.label}` bounding box at {self.canvas.coords(self.current_box)}")
         self.current_box = None

@@ -1,5 +1,4 @@
 from tkinter import filedialog
-from datetime import date
 import json
 import os
 
@@ -7,6 +6,7 @@ import os
 class InfoManager:
     def __init__(self):
         self.directory = None
+        self.valid = False
         self.colour_map = {}
 
         self.info = {}
@@ -14,6 +14,9 @@ class InfoManager:
         self.categories = []
         self.images = []
         self.annotations = []
+
+    def set_valid(self, valid: bool):
+        self.valid = valid
 
     def clear_fields(self):
         self.info = {}
@@ -28,7 +31,6 @@ class InfoManager:
 
     # TODO: Handle annotation segmentations
     # TODO: Handle annotation iscrowd
-    # TODO: Handle image license
     # TODO: Handle category supercategory
 
     # Fills all possible fields based on accessible information
@@ -44,7 +46,7 @@ class InfoManager:
         for editable_image in editable_images:
             for obj in editable_image.undo_stack:
                 coords = obj[0]
-                label = obj[1][0]
+                label = obj[1]
                 bbox = [coords[0], coords[1], coords[2]-coords[0], coords[3]-coords[1]]
                 area = bbox[2] * bbox[3]
 
@@ -81,7 +83,7 @@ class InfoManager:
         return id_colour_map
 
     def write_coco(self):
-        if self.directory:
+        if self.directory and self.valid:
             path = os.path.join(self.directory, "coco.json")
             coco = {"info": self.info, "licenses": self.licenses, "categories": self.categories, "images": self.images,
                     "annotations": self.annotations}
@@ -102,7 +104,7 @@ class InfoManager:
                 self.annotations = content["annotations"]
 
     def write_colour_map(self):
-        if self.directory:
+        if self.directory and self.valid:
             path = os.path.join(self.directory, ".colour_map.json")
             with open(path, "w") as colour_file:
                 colour_file.write(json.dumps(self.colour_map))
@@ -131,7 +133,6 @@ def load_dir(info_manager: InfoManager):
 
         return "read"
     else:
-        # TODO: Allow the user to pass default labels
         info_manager.colour_map = {"blue": "blue", "lime green": "lime green", "yellow": "yellow", "red": "red",
                                    "deep pink": "deep pink"}
 
