@@ -1,13 +1,77 @@
 import tkinter as tk
+from datetime import date
 
 from info import InfoManager, load_dir
 from canvas import ImageManager
 
 
-# Manages the ui events
-class UIHandler:
-    def __init__(self, canvas, colour_picker,  buttons: tuple, status_bar):
+def write_entry(entry, string: str):
+    entry.delete(0, tk.END)
+    entry.insert(0, string)
+
+
+def write_text(entry, string: str):
+    entry.delete(1.0, tk.END)
+    entry.insert(1.0, string)
+
+
+class InfoEntry:
+    def __init__(self, entries: tuple):
+        self.year = None
+        self.version = ""
+        self.description = ""
+        self.contributor = ""
+        self.url = ""
+
+        self.year_entry = entries[0]
+        self.version_entry = entries[1]
+        self.description_entry = entries[2]
+        self.contributor_entry = entries[3]
+        self.url_entry = entries[4]
+
+        self.set_default()
+
+    def read_entries(self):
+        self.year = self.year_entry.get()
+        self.version = self.version_entry.get()
+        self.description = self.description_entry.get(1.0, tk.END)
+        self.contributor = self.contributor_entry.get(1.0, tk.END)
+        self.url = self.url_entry.get(1.0, tk.END)
+
+    def write_entries(self):
+        write_entry(self.year_entry, self.year)
+        write_entry(self.version_entry, self.version)
+        write_text(self.description_entry, self.description)
+        write_text(self.contributor_entry, self.contributor)
+        write_text(self.url_entry, self.url)
+
+    def save_entries(self, info_manager: InfoManager):
+        self.read_entries()
+        info_manager.populate_info(self.year, self.version, self.description, self.contributor, self.url)
+
+    def set_default(self):
+        self.year = "2021"
+        self.version = "0.1.0"
+        self.description = "Boxer: The simple bounding box tool"
+        self.contributor = "Guillaume Macneil"
+        self.url = "https://www.github.com/MetallicSquid/boxer"
+        self.write_entries()
+
+    def set_info(self, info: dict):
+        self.year = info["year"]
+        self.version = info["version"]
+        self.description = info["description"]
+        self.contributor = info["contributor"]
+        self.url = info["url"]
+        self.write_entries()
+
+
+# FIXME: I feel like the ToolBar handles too much, maybe a more generalised handler is needed
+# *Should handle* button states and function calls for the tool bar
+class ToolBar:
+    def __init__(self, canvas: tk.Canvas, info_entry,  colour_picker, buttons: tuple, status_bar):
         self.canvas = canvas
+        self.info_entry = info_entry
         self.colour_picker = colour_picker
         self.status_bar = status_bar
         self.info_manager = InfoManager()
@@ -32,6 +96,7 @@ class UIHandler:
     def on_quit(self):
         if self.info_manager:
             self.info_manager.bulk_populate_fields(self.image_manager.editable_images)
+            self.info_entry.save_entries(self.info_manager)
             self.info_manager.write_coco()
             self.info_manager.write_colour_map()
 
@@ -83,6 +148,7 @@ class UIHandler:
             self.image_manager.draw_invalid()
         elif dir_info == "read":
             self.info_manager.set_valid(True)
+            self.info_entry.set_info(self.info_manager.info)
             self.image_manager.load_canvas(self.info_manager)
             self.colour_picker.remap_colour_picker(self.info_manager)
 

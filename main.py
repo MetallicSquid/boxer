@@ -1,11 +1,10 @@
 import tkinter as tk
 
-from ui_elements import ColourPicker, UIHandler, StatusBar
+from ui_elements import InfoEntry, ColourPicker, ToolBar, StatusBar
 
 root = tk.Tk()
 root.title("Boxer")
 
-# TODO: These fields don't do anything useful yet
 info_frame = tk.Frame(root)
 info_frame.pack(side=tk.TOP)
 
@@ -33,6 +32,9 @@ url_label = tk.Label(info_frame, text="Project Url: ", font="Helvetica 10")
 url_label.grid(row=0, column=6, rowspan=2)
 url_entry = tk.Text(info_frame, width=20, height=3)
 url_entry.grid(row=0, column=7, rowspan=2)
+
+entries = (year_entry, version_entry, description_entry, contributor_entry, url_entry)
+info_entry = InfoEntry(entries)
 
 central_frame = tk.Frame(root)
 central_frame.pack(side=tk.TOP, expand=True)
@@ -72,7 +74,7 @@ info_bar = tk.Label(status_frame, anchor=tk.E)
 info_bar.pack(side=tk.RIGHT)
 status_bar = StatusBar(action_bar, info_bar)
 
-ui_handler = UIHandler(canvas, colour_picker, buttons, status_bar)
+ui_handler = ToolBar(canvas, info_entry, colour_picker, buttons, status_bar)
 
 
 def safe_quit():

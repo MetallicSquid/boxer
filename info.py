@@ -1,4 +1,5 @@
 from tkinter import filedialog
+from datetime import date
 import json
 import os
 
@@ -28,6 +29,10 @@ class InfoManager:
     def activate(self, directory: str):
         self.directory = directory
         self.clear_fields()
+
+    def populate_info(self, year: int, version: str, description: str, contributor: str, url: str):
+        self.info = {"year": year, "version": version, "description": description, "contributor": contributor,
+                     "url": url, "date_created": str(date.today())}
 
     # TODO: Handle annotation segmentations
     # TODO: Handle annotation iscrowd
