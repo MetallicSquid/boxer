@@ -1,7 +1,6 @@
 import tkinter as tk
 
-from canvas import ImageManager
-from ui_elements import InfoEntry, ColourPicker, ToolBar, StatusBar
+from ui_elements import ImageManager, InfoEntry, ColourPicker, ToolBar, StatusBar
 
 root = tk.Tk()
 root.title("Boxer")
