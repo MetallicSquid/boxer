@@ -66,28 +66,23 @@ class InfoEntry:
         self.write_entries()
 
 
-# FIXME: I feel like the ToolBar handles too much, maybe a more generalised handler is needed
-# *Should handle* button states and function calls for the tool bar
+# Handles button states and function calls for the tool bar
 class ToolBar:
-    def __init__(self, canvas: tk.Canvas, info_entry,  colour_picker, buttons: tuple, status_bar):
-        self.canvas = canvas
+    def __init__(self, image_manager, info_entry,  colour_picker, buttons: tuple, status_bar):
+        self.image_manager = image_manager
         self.info_entry = info_entry
         self.colour_picker = colour_picker
         self.status_bar = status_bar
         self.info_manager = InfoManager()
 
-        self.image_manager = ImageManager(canvas, colour_picker, status_bar)
         self.image_manager.stack_change.trace_add("write", self.on_stack_change)
-        self.history_path = None
 
         self.open_button = buttons[0]
         self.open_button.configure(command=self.open_pressed)
-
         self.undo_button = buttons[1]
         self.undo_button.configure(command=self.undo_pressed, state=tk.DISABLED)
         self.redo_button = buttons[2]
         self.redo_button.configure(command=self.redo_pressed, state=tk.DISABLED)
-
         self.prev_button = buttons[3]
         self.prev_button.configure(command=self.prev_pressed, state=tk.DISABLED)
         self.next_button = buttons[4]

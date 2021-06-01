@@ -118,7 +118,7 @@ class ImageManager:
         self.colour_picker.entry.unbind("<KeyRelease>")
         self.reset_canvas()
 
-    def new_canvas(self, image_paths: list, history_manager):
+    def canvas_state(self, history_manager):
         self.history_manager = history_manager
 
         if self.active_image:
@@ -129,10 +129,7 @@ class ImageManager:
             self.canvas.bind("<ButtonRelease-1>", self.on_mouse_release)
             self.colour_picker.entry.bind("<KeyRelease>", self.update_labels)
 
-        for image_path in image_paths:
-            editable_image = EditableImage(image_path, self.canvas)
-            self.editable_images.append(editable_image)
-
+    def set_canvas(self):
         self.active_image = self.editable_images[self.image_pointer]
         self.active_image.activate_image()
 
@@ -142,16 +139,17 @@ class ImageManager:
 
         self.stack_change.set(not self.stack_change.get())
 
-    def load_canvas(self, history_manager):
-        self.history_manager = history_manager
+    def new_canvas(self, image_paths: list, history_manager):
+        self.canvas_state(history_manager)
 
-        if self.active_image:
-            self.reset_canvas()
-        else:
-            self.canvas.bind("<ButtonPress-1>", self.on_mouse_press)
-            self.canvas.bind("<B1-Motion>", self.on_mouse_move)
-            self.canvas.bind("<ButtonRelease-1>", self.on_mouse_release)
-            self.colour_picker.entry.bind("<KeyRelease>", self.update_labels)
+        for image_path in image_paths:
+            editable_image = EditableImage(image_path, self.canvas)
+            self.editable_images.append(editable_image)
+
+        self.set_canvas()
+
+    def load_canvas(self, history_manager):
+        self.canvas_state(history_manager)
 
         directory = self.history_manager.directory
         images = self.history_manager.images
@@ -173,14 +171,7 @@ class ImageManager:
             editable_image.undo_stack = bbox_dict[image["id"]]
             self.editable_images.append(editable_image)
 
-        self.active_image = self.editable_images[self.image_pointer]
-        self.active_image.activate_image()
-
-        filename = os.path.basename(self.active_image.image_path)
-        file_ratio = f"{self.image_pointer}/{len(self.editable_images)}"
-        self.status_bar.update_info(f"{filename}    {file_ratio}")
-
-        self.stack_change.set(not self.stack_change.get())
+        self.set_canvas()
 
     def shift_image(self, delta: int):
         self.image_pointer += delta
