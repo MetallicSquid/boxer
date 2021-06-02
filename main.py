@@ -62,14 +62,13 @@ b_next = tk.Button(tool_frame, text="⏭ Next️")
 b_next.grid(row=5, column=2)
 buttons = (b_open, b_undo, b_redo, b_prev, b_next)
 
-box_label = tk.Label(tool_frame, text="Box: ")
-box_label.grid(row=6, column=1)
-box_check = tk.Checkbutton(tool_frame)
-box_check.grid(row=6, column=2)
-polygon_label = tk.Label(tool_frame, text="Polygon: ")
-polygon_label.grid(row=7, column=1)
-polygon_check = tk.Checkbutton(tool_frame)
-polygon_check.grid(row=7, column=2)
+check_frame = tk.Frame(tool_frame)
+check_frame.grid(row=6, column=1, columnspan=2)
+box_check = tk.Checkbutton(check_frame, text="Bounding Box")
+box_check.pack(side=tk.TOP, anchor=tk.W)
+polygon_check = tk.Checkbutton(check_frame, text="Polygon")
+polygon_check.pack(side=tk.TOP, anchor=tk.W)
+check_buttons = (box_check, polygon_check)
 
 # The canvas on the left / middle of the screen
 image_frame = tk.Frame(root)
@@ -78,7 +77,7 @@ canvas = tk.Canvas(image_frame, width=600, height=300, bg="white", bd=5, relief=
 canvas.pack(fill=tk.BOTH, expand=True)
 image_manager = ImageManager(canvas, colour_picker, status_bar)
 
-tool_bar = ToolBar(image_manager, info_entry, colour_picker, buttons, status_bar)
+tool_bar = ToolBar(image_manager, info_entry, colour_picker, buttons, check_buttons, status_bar)
 
 
 def safe_quit():

@@ -4,7 +4,7 @@ from collections import defaultdict
 
 
 from info import InfoManager, load_dir
-from canvas import EditableImage
+from canvas import EditableImage, BoundingBox, Polygon
 
 
 def write_entry(entry, string: str):
@@ -70,7 +70,7 @@ class InfoEntry:
 
 # Handles button states and function calls for the tool bar
 class ToolBar:
-    def __init__(self, image_manager, info_entry,  colour_picker, buttons: tuple, status_bar):
+    def __init__(self, image_manager, info_entry,  colour_picker, buttons: tuple, check_buttons: tuple, status_bar):
         self.image_manager = image_manager
         self.info_entry = info_entry
         self.colour_picker = colour_picker
@@ -90,6 +90,15 @@ class ToolBar:
         self.next_button = buttons[4]
         self.next_button.configure(command=self.next_pressed, state=tk.DISABLED)
 
+        self.box_var = tk.BooleanVar()
+        self.polygon_var = tk.BooleanVar()
+        self.box_button = check_buttons[0]
+        self.box_button.configure(command=self.box_toggle, state=tk.DISABLED, variable=self.box_var,
+                                  onvalue=self.box_var.set(True), offvalue=self.box_var.set(False))
+        self.polygon_button = check_buttons[1]
+        self.polygon_button.configure(command=self.polygon_toggle, state=tk.DISABLED, variable=self.polygon_var,
+                                      onvalue=self.polygon_var.set(True), offvalue=self.polygon_var.set(False))
+
     def on_quit(self):
         if self.info_manager:
             self.info_manager.bulk_populate_fields(self.image_manager.editable_images)
@@ -100,11 +109,11 @@ class ToolBar:
     # Button state checks
     def on_stack_change(self, _var, _index, _mode):
         if self.image_manager.active_image:
-            self.stack_state(self.image_manager.active_image.undo_stack, self.undo_button)
-            self.stack_state(self.image_manager.active_image.redo_stack, self.redo_button)
+            self.stack_button_state(self.image_manager.active_image.undo_stack, self.undo_button)
+            self.stack_button_state(self.image_manager.active_image.redo_stack, self.redo_button)
         self.prev_next_state()
 
-    def stack_state(self, stack: list, button: tk.Button):
+    def stack_button_state(self, stack: list, button: tk.Button):
         if self.image_manager.active_image:
             if (button['state'] == tk.NORMAL or button['state'] == tk.ACTIVE) and not stack:
                 button['state'] = tk.DISABLED
@@ -129,6 +138,14 @@ class ToolBar:
         elif self.next_button['state'] == tk.DISABLED and index != image_no:
             self.next_button['state'] = tk.NORMAL
 
+    def checkbutton_state(self):
+        if self.image_manager.active_image:
+            self.box_button['state'] = tk.NORMAL
+            self.polygon_button['state'] = tk.NORMAL
+        else:
+            self.box_button['state'] = tk.DISABLED
+            self.polygon_button['state'] = tk.DISABLED
+
     # Button pressed events
     def open_pressed(self):
         if self.info_manager.directory:
@@ -149,9 +166,10 @@ class ToolBar:
             self.image_manager.load_canvas(self.info_manager)
             self.colour_picker.remap_colour_picker(self.info_manager)
 
-            self.stack_state(self.image_manager.active_image.undo_stack, self.undo_button)
-            self.stack_state(self.image_manager.active_image.redo_stack, self.redo_button)
+            self.stack_button_state(self.image_manager.active_image.undo_stack, self.undo_button)
+            self.stack_button_state(self.image_manager.active_image.redo_stack, self.redo_button)
             self.prev_next_state()
+            self.checkbutton_state()
 
             self.status_bar.update_action(f"Opened {self.info_manager.directory} containing {len(dir_info)} valid images.")
         elif type(dir_info) == list:
@@ -159,21 +177,22 @@ class ToolBar:
             self.image_manager.new_canvas(dir_info, self.info_manager)
             self.colour_picker.remap_colour_picker(self.info_manager)
 
-            self.stack_state(self.image_manager.active_image.undo_stack, self.undo_button)
-            self.stack_state(self.image_manager.active_image.redo_stack, self.redo_button)
+            self.stack_button_state(self.image_manager.active_image.undo_stack, self.undo_button)
+            self.stack_button_state(self.image_manager.active_image.redo_stack, self.redo_button)
             self.prev_next_state()
+            self.checkbutton_state()
 
             self.status_bar.update_action(f"Opened {self.info_manager.directory} containing {len(dir_info)} valid images.")
 
     def undo_pressed(self):
         self.image_manager.undo_action()
-        self.stack_state(self.image_manager.active_image.undo_stack, self.undo_button)
-        self.stack_state(self.image_manager.active_image.redo_stack, self.redo_button)
+        self.stack_button_state(self.image_manager.active_image.undo_stack, self.undo_button)
+        self.stack_button_state(self.image_manager.active_image.redo_stack, self.redo_button)
 
     def redo_pressed(self):
         self.image_manager.redo_action()
-        self.stack_state(self.image_manager.active_image.undo_stack, self.undo_button)
-        self.stack_state(self.image_manager.active_image.redo_stack, self.redo_button)
+        self.stack_button_state(self.image_manager.active_image.undo_stack, self.undo_button)
+        self.stack_button_state(self.image_manager.active_image.redo_stack, self.redo_button)
 
     def prev_pressed(self):
         self.image_manager.shift_image(-1)
@@ -182,6 +201,20 @@ class ToolBar:
     def next_pressed(self):
         self.image_manager.shift_image(1)
         self.prev_next_state()
+
+    def box_toggle(self):
+        self.polygon_button.deselect()
+        if not self.box_var.get():
+            self.image_manager.deactivate_canvas()
+        else:
+            self.image_manager.set_tool_bbox()
+
+    def polygon_toggle(self):
+        self.box_button.deselect()
+        if not self.polygon_var.get():
+            self.image_manager.deactivate_canvas()
+        else:
+            self.image_manager.set_tool_polygon()
 
 
 # Manages the colour listbox and label selector
@@ -250,11 +283,14 @@ class StatusBar:
 
 # Manages the image on the canvas and the actions that can be performed on it
 class ImageManager:
-    def __init__(self, canvas, colour_picker, status_bar):
+    def __init__(self, canvas: tk.Canvas, colour_picker, status_bar):
         self.canvas = canvas
         self.colour_picker = colour_picker
         self.status_bar = status_bar
         self.history_manager = None
+
+        self.width = self.canvas.winfo_width()
+        self.height = self.canvas.winfo_height()
 
         self.image_pointer = 0
         self.editable_images = []
@@ -262,16 +298,15 @@ class ImageManager:
 
         self.stack_change = tk.BooleanVar()
 
-        self.start_x, self.start_y = None, None
-        self.current_x, self.current_y = None, None
-        self.current_box = None
-        self.current_label = None
+        self.bbox = None
+        self.poly = None
 
         self.draw_startup()
 
     # Placeholder screens
     def draw_placeholder(self, title, subtitle, description):
         self.deactivate_canvas()
+        self.reset_canvas()
         self.canvas.create_text(20, 20, text=title, fill="black", font="Helvetica 30 bold", anchor=tk.NW)
         self.canvas.create_text(20, 70, text=subtitle, fill="gray", font="Helvetica 20 italic", anchor=tk.NW)
         self.canvas.create_text(20, 120, text=description, fill="black", font="Helvetica 15", anchor=tk.NW)
@@ -297,8 +332,6 @@ class ImageManager:
         self.active_image = None
         self.editable_images = []
         self.image_pointer = 0
-        self.current_box = None
-        self.current_label = None
 
         self.stack_change.set(not self.stack_change.get())
 
@@ -307,18 +340,15 @@ class ImageManager:
         self.canvas.unbind("<B1-Motion>")
         self.canvas.unbind("<ButtonRelease-1>")
         self.colour_picker.entry.unbind("<KeyRelease>")
-        self.reset_canvas()
 
+    # FIXME: This can probably be dropped
     def canvas_state(self, history_manager):
         self.history_manager = history_manager
 
         if self.active_image:
             self.reset_canvas()
         else:
-            self.canvas.bind("<ButtonPress-1>", self.on_mouse_press)
-            self.canvas.bind("<B1-Motion>", self.on_mouse_move)
-            self.canvas.bind("<ButtonRelease-1>", self.on_mouse_release)
-            self.colour_picker.entry.bind("<KeyRelease>", self.update_labels)
+            self.canvas.delete("all")
 
     def set_canvas(self):
         self.active_image = self.editable_images[self.image_pointer]
@@ -345,16 +375,18 @@ class ImageManager:
         directory = self.history_manager.directory
         images = self.history_manager.images
         annotations = self.history_manager.annotations
+
         bbox_dict = defaultdict(list)
         id_category_map = self.history_manager.make_id_category_map()
         id_colour_map = self.history_manager.make_id_colour_map()
+
         for annotation in annotations:
             coords = [annotation["bbox"][0], annotation["bbox"][1], annotation["bbox"][0]+annotation["bbox"][2],
                       annotation["bbox"][1]+annotation["bbox"][3]]
             label = id_category_map[annotation["category_id"]]
             colour = id_colour_map[label]
 
-            bbox_dict[annotation["image_id"]].append((coords, label, colour))
+            bbox_dict[annotation["image_id"]].append(BoundingBox(self.canvas, coords, label, colour))
 
         for image in images:
             path = os.path.join(directory, image["file_name"])
@@ -379,78 +411,78 @@ class ImageManager:
         # FIXME: This whole trace system feels very hack-ish, this should probably be changed in the future
         self.stack_change.set(not self.stack_change.get())
 
-    def find_object_ref(self, coords: list):
-        for object_ref in self.canvas.find_all():
-            if self.canvas.coords(object_ref) == coords:
-                return object_ref
-
-        return None
-
-    def find_label_refs(self, label: str):
-        ref_list = []
-        for object_ref in self.canvas.find_all():
-            if self.canvas.type(object_ref) == "text":
-                if self.canvas.itemcget(object_ref, "text") == label:
-                    ref_list.append(object_ref)
-
-        return ref_list
-
     # Undo and redo events
     def undo_action(self):
         undo = self.active_image.pop_undo()
-        self.canvas.delete(self.find_object_ref(undo[0]))
-        self.canvas.delete(self.find_object_ref([(undo[0][0]+undo[0][2])/2, undo[0][3]+15]))
-        self.status_bar.update_action(f"Removed `{undo[1]}` bounding box at {undo[0]}")
+        undo.delete()
+        self.status_bar.update_action(f"Removed `{undo.get_label()}` bounding box at {undo.get_coords()}")
         self.active_image.append_redo(undo)
 
     def redo_action(self):
         redo = self.active_image.pop_redo()
-        self.canvas.create_rectangle(redo[0][0], redo[0][1], redo[0][2], redo[0][3], width=4, outline=redo[2])
-        self.canvas.create_text((redo[0][0]+redo[0][2])/2, redo[0][3]+15, text=redo[1][0], fill=redo[2],
-                                font="Helvetica 15 bold")
-        self.status_bar.update_action(f"Created `{redo[1]} bounding box at {redo[0]}")
+        redo.draw()
+        self.status_bar.update_action(f"Created `{redo.get_label()} bounding box at {redo.get_coords()}")
         self.active_image.append_undo(redo)
 
-    # FIXME: I'm undecided on whether this should be here or not
+    # Tool changes
+    def set_tool_bbox(self):
+        self.deactivate_canvas()
+        self.canvas.bind("<ButtonPress-1>", self.bbox_on_mouse_press)
+        self.canvas.bind("<B1-Motion>", self.bbox_on_mouse_move)
+        self.canvas.bind("<ButtonRelease-1>", self.bbox_on_mouse_release)
+        self.colour_picker.entry.bind("<KeyRelease>", self.update_labels)
+
+    def set_tool_polygon(self):
+        print("triggered")
+        self.deactivate_canvas()
+        self.canvas.bind("<ButtonPress-1>", self.poly_on_mouse_press)
+        self.canvas.bind("<Motion>", self.poly_on_mouse_move)
+        self.colour_picker.entry.bind("<KeyRelease>", self.update_labels)
+
     # Event Bindings
     def update_labels(self, _event: tk.Event):
         old_label = self.colour_picker.label
         self.colour_picker.on_entry_edit()
         new_label = self.colour_picker.label
 
-        label_list = self.find_label_refs(old_label)
-        for label in label_list:
-            self.canvas.itemconfigure(label, text=new_label)
-
         for image in self.editable_images:
             for undo in image.undo_stack:
-                if undo[1] == old_label:
-                    undo[1] = new_label
+                if undo.get_label() == old_label:
+                    undo.change_label(new_label)
             for redo in image.redo_stack:
-                if redo[1] == old_label:
-                    redo[1] = new_label
+                if redo.get_label() == old_label:
+                    redo.change_label(new_label)
 
-        self.status_bar.update_action(f"Changed {self.colour_picker.colour} label from `{old_label}` to `{new_label}`.")
+        self.status_bar.update_action(f"Changed {self.colour_picker.colour} label to `{new_label}`.")
 
-    def on_mouse_press(self, event: tk.Event):
-        self.start_x = event.x
-        self.start_y = event.y
-        self.current_box = self.canvas.create_rectangle(self.start_x, self.start_y, self.start_x, self.start_y, width=4,
-                                                        outline=self.colour_picker.colour)
-        self.current_label = self.canvas.create_text(self.start_x, self.start_y+15, text=self.colour_picker.label,
-                                                     fill=self.colour_picker.colour, font="Helvetica 15 bold")
+    # Bounding box actions
+    def bbox_on_mouse_press(self, event: tk.Event):
+        self.bbox = BoundingBox(self.canvas, [event.x, event.y, event.x, event.y], self.colour_picker.label,
+                                self.colour_picker.colour)
+        self.bbox.draw()
 
-    def on_mouse_move(self, event: tk.Event):
-        self.current_x = event.x
-        self.current_y = event.y
-        self.canvas.coords(self.current_box, self.start_x, self.start_y, self.current_x, self.current_y)
-        self.canvas.coords(self.current_label, ((self.start_x+self.current_x)/2, self.current_y+15))
+    def bbox_on_mouse_move(self, event: tk.Event):
+        self.bbox.adjust(event.x, event.y)
 
-    def on_mouse_release(self, _event: tk.Event):
-        self.active_image.append_undo([self.canvas.coords(self.current_box), self.colour_picker.label,
-                                       self.colour_picker.colour])
+    def bbox_on_mouse_release(self, _event: tk.Event):
+        self.active_image.append_undo(self.bbox)
 
-        self.status_bar.update_action(f"Created `{self.colour_picker.label}` bounding box at {self.canvas.coords(self.current_box)}")
-        self.current_box = None
+        self.status_bar.update_action(f"Created `{self.bbox.get_label()}` bounding box at {self.bbox.get_coords()}")
+        self.bbox = None
         self.active_image.redo_stack = []
+
         self.stack_change.set(not self.stack_change.get())
+
+    # Polygon actions
+    def poly_on_mouse_press(self, event: tk.Event):
+        if self.poly:
+            if self.poly.end_segment():
+                self.active_image.undo_stack.append(self.poly)
+                self.poly = None
+        else:
+            self.poly = Polygon(self.canvas, self.colour_picker.colour, event.x, event.y)
+            self.poly.draw()
+
+    def poly_on_mouse_move(self, event: tk.Event):
+        if self.poly:
+            self.poly.adjust(event.x, event.y)

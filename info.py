@@ -50,8 +50,8 @@ class InfoManager:
 
         for editable_image in editable_images:
             for obj in editable_image.undo_stack:
-                coords = obj[0]
-                label = obj[1]
+                coords = obj.get_coords()
+                label = obj.get_label()
                 bbox = [coords[0], coords[1], coords[2]-coords[0], coords[3]-coords[1]]
                 area = bbox[2] * bbox[3]
 
