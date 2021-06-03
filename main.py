@@ -1,6 +1,6 @@
 import tkinter as tk
 
-from ui_elements import ImageManager, InfoEntry, ColourPicker, ToolBar, StatusBar
+from ui import ImageManager, InfoEntry, ColourPicker, ToolBar, StatusBar, StateHandler
 
 root = tk.Tk()
 root.title("Boxer")
@@ -62,22 +62,16 @@ b_next = tk.Button(tool_frame, text="⏭ Next️")
 b_next.grid(row=5, column=2)
 buttons = (b_open, b_undo, b_redo, b_prev, b_next)
 
-check_frame = tk.Frame(tool_frame)
-check_frame.grid(row=6, column=1, columnspan=2)
-box_check = tk.Checkbutton(check_frame, text="Bounding Box")
-box_check.pack(side=tk.TOP, anchor=tk.W)
-polygon_check = tk.Checkbutton(check_frame, text="Polygon")
-polygon_check.pack(side=tk.TOP, anchor=tk.W)
-check_buttons = (box_check, polygon_check)
+state_handler = StateHandler(colour_picker, buttons)
 
 # The canvas on the left / middle of the screen
 image_frame = tk.Frame(root)
 image_frame.pack(side=tk.LEFT, expand=True)
 canvas = tk.Canvas(image_frame, width=600, height=300, bg="white", bd=5, relief=tk.GROOVE)
 canvas.pack(fill=tk.BOTH, expand=True)
-image_manager = ImageManager(canvas, colour_picker, status_bar)
+image_manager = ImageManager(canvas, colour_picker, status_bar, state_handler)
 
-tool_bar = ToolBar(image_manager, info_entry, colour_picker, buttons, check_buttons, status_bar)
+tool_bar = ToolBar(image_manager, info_entry, colour_picker, buttons, status_bar, state_handler)
 
 
 def safe_quit():
