@@ -1,6 +1,6 @@
 import tkinter as tk
 
-from ui import ImageManager, InfoEntry, ColourPicker, ToolBar, StatusBar, StateHandler
+from ui import ImageManager, InfoEntry, ColourPicker, ToolBar, StatusBar, StateManager
 
 root = tk.Tk()
 root.title("Boxer")
@@ -62,7 +62,7 @@ b_next = tk.Button(tool_frame, text="⏭ Next️")
 b_next.grid(row=5, column=2)
 buttons = (b_open, b_undo, b_redo, b_prev, b_next)
 
-state_handler = StateHandler(colour_picker, buttons)
+state_handler = StateManager(colour_picker, buttons)
 
 # The canvas on the left / middle of the screen
 image_frame = tk.Frame(root)

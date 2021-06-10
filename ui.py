@@ -68,7 +68,7 @@ class InfoEntry:
         self.write_entries()
 
 
-class StateHandler:
+class StateManager:
     def __init__(self, colour_picker, buttons: tuple):
         self.colour_picker = colour_picker
         self.open_button = buttons[0]
@@ -317,6 +317,7 @@ class ImageManager:
         self.canvas.unbind("<ButtonPress-1>")
         self.canvas.unbind("<B1-Motion>")
         self.canvas.unbind("<ButtonRelease-1>")
+        self.canvas.unbind("<ButtonPress-3>")
         self.colour_picker.entry.unbind("<KeyRelease>")
 
     # FIXME: This can probably be dropped
@@ -362,6 +363,7 @@ class ImageManager:
         id_category_map = self.history_manager.make_id_category_map()
         id_colour_map = self.history_manager.make_id_colour_map()
 
+        # FIXME: This needs to be updated for the new annotation model
         for annotation in annotations:
             coords = [annotation["bbox"][0], annotation["bbox"][1], annotation["bbox"][0]+annotation["bbox"][2],
                       annotation["bbox"][1]+annotation["bbox"][3]]
@@ -385,7 +387,6 @@ class ImageManager:
         self.active_image.activate_image()
 
         self.status_bar.update_action(f"Moved to image {self.image_pointer+1} out of {len(self.editable_images)}.")
-
         filename = os.path.basename(self.active_image.image_path)
         file_ratio = f"{self.image_pointer}/{len(self.editable_images)}"
         self.status_bar.update_info(f"{filename}    {file_ratio}")
@@ -397,16 +398,24 @@ class ImageManager:
 
     # Undo and redo events
     def undo_action(self):
-        if not self.annotation.undo():
-            self.active_image.append_redo(self.annotation)
-            self.annotation = self.active_image.pop_undo()
-            self.annotation.undo()
+        undo = self.active_image.pop_undo()
+        self.state_manager.undo_state(self.active_image.undo_stack)
+        undo.delete()
+        self.active_image.append_redo(undo)
+        self.state_manager.redo_state(self.active_image.redo_stack)
+        self.annotation.update_annotation_after_undo()
+
+        if not self.annotation.is_active_bbox():
+            self.set_tool_bbox()
+            self.active_image.annotations.pop()
 
     def redo_action(self):
         redo = self.active_image.pop_redo()
+        self.state_manager.redo_state(self.active_image.redo_stack)
         redo.draw()
-        self.status_bar.update_action(f"Created `{redo.get_label()} bounding box at {redo.get_coords()}")
         self.active_image.append_undo(redo)
+        self.state_manager.undo_state(self.active_image.undo_stack)
+        self.annotation.update_annotation_after_redo(redo)
 
     # Tool changes
     def set_tool_bbox(self):
@@ -420,6 +429,7 @@ class ImageManager:
         self.deactivate_canvas()
         self.canvas.bind("<ButtonPress-1>", self.poly_on_mouse_press)
         self.canvas.bind("<Motion>", self.poly_on_mouse_move)
+        self.canvas.bind("<ButtonPress-3>", self.end_annotation)
         self.colour_picker.entry.bind("<KeyRelease>", self.update_labels)
 
     # Event Bindings
@@ -449,14 +459,16 @@ class ImageManager:
         self.annotation.adjust_bbox(event.x, event.y)
 
     def bbox_on_mouse_release(self, _event: tk.Event):
-        self.active_image.append_undo(self.annotation)
+        self.active_image.append_undo(self.annotation.get_bbox())
+        self.active_image.append_annotation(self.annotation)
 
         self.set_tool_polygon()
 
         self.status_bar.update_action(f"Created `{self.annotation.get_label()}` bounding box at {self.annotation.get_bbox_coords()}")
-        self.active_image.redo_stack = []
 
-        # self.stack_change.set(not self.stack_change.get())
+        self.active_image.redo_stack = []
+        self.state_manager.undo_state(self.active_image.undo_stack)
+        self.state_manager.redo_state(self.active_image.redo_stack)
 
     # Polygon actions
     def poly_on_mouse_press(self, event: tk.Event):
@@ -465,11 +477,22 @@ class ImageManager:
             self.bbox_on_mouse_press(event)
         else:
             if self.annotation.is_active_polygon():
-                self.annotation.end_polygon_segment()
+                if not self.annotation.resume_polygon(event.x, event.y):
+                    self.annotation.end_polygon_segment()
+                    self.active_image.append_undo(self.annotation.get_segment())
             else:
                 self.annotation.set_polygon(Polygon(self.canvas, self.annotation.get_colour(), event.x, event.y))
                 self.annotation.draw_polygon_segment()
 
+        self.active_image.redo_stack = []
+        self.state_manager.undo_state(self.active_image.undo_stack)
+        self.state_manager.redo_state(self.active_image.redo_stack)
+
     def poly_on_mouse_move(self, event: tk.Event):
         if self.annotation.is_active_polygon():
-            self.annotation.adjust_polygon_segment(event.x, event.y)
+            if self.annotation.is_active_segment():
+                self.annotation.adjust_polygon_segment(event.x, event.y)
+
+    def end_annotation(self, _event: tk.Event):
+        self.set_tool_bbox()
+

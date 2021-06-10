@@ -31,11 +31,29 @@ class InfoManager:
         self.clear_fields()
 
     def populate_info(self, year: int, version: str, description: str, contributor: str, url: str):
-        self.info = {"year": year, "version": version, "description": description, "contributor": contributor,
-                     "url": url, "date_created": str(date.today())}
+        self.info = {"year": year,
+                     "version": version,
+                     "description": description,
+                     "contributor": contributor,
+                     "url": url,
+                     "date_created": str(date.today())}
 
-    # TODO: Handle annotation segmentations
     # TODO: Handle annotation iscrowd
+
+    '''
+    RLE is handled by looping over all of the pixels in the image and seeing if a given pixel lies within the bounding
+    polygon. The segmentation field ends up having two lists - size and counts. Size depicts the size of the image.
+    Counts is a list of the number of pixels that are valid and are not valid for a given annotation, it might look like
+    [147, 4, 32, 17, 123, 8, ...]
+     NV   V  NV  V   NV   V  ...
+     
+     In order to support this, I first need to write an efficient algorithm for detecting whether two lines intersect,
+     and then using this determine whether a point lies within a polygon by counting the number of intersections on a 
+     given plane.
+     
+     (Maybe handle supercategories first)
+    '''
+
     # TODO: Handle category supercategory
 
     # Fills all possible fields based on accessible information
@@ -49,28 +67,40 @@ class InfoManager:
         category_id_map = {}
 
         for editable_image in editable_images:
-            for obj in editable_image.undo_stack:
-                coords = obj.get_coords()
-                label = obj.get_label()
+            for annotation in editable_image.annotations:
+                coords = annotation.bbox.get_coords()
                 bbox = [coords[0], coords[1], coords[2]-coords[0], coords[3]-coords[1]]
                 area = bbox[2] * bbox[3]
 
-                if label not in present_categories:
-                    present_categories.append(label)
-                    category_id_map[label] = category_counter
-                    category = {"id": category_counter, "name": label, "supercategory": None}
-                    self.categories.append(category)
+                if annotation.label not in present_categories:
+                    present_categories.append(annotation.label)
+                    category_id_map[annotation.label] = category_counter
+                    self.categories.append({"id": category_counter,
+                                            "name": annotation.label,
+                                            "supercategory": None})
                     category_counter += 1
 
-                annotation = {"id": annotation_counter, "image_id": image_counter,
-                              "category_id": category_id_map[label], "segmentation": None, "area": area,
-                              "bbox": bbox, "iscrowd": None}
-                self.annotations.append(annotation)
+                segmentation = []
+                for polygon in annotation.polygons:
+                    # TODO: Set iscrowd=1 if there are multiple polygons here
+                    # TODO: Handle RLE if iscrowd=1/
+                    segmentation.append(polygon.get_coords())
+
+                self.annotations.append({"id": annotation_counter,
+                                         "image_id": image_counter,
+                                         "category_id": category_id_map[annotation.label],
+                                         "segmentation": segmentation,
+                                         "area": area,
+                                         "bbox": bbox,
+                                         "iscrowd": None})
                 annotation_counter += 1
 
-            image = {"id": image_counter, "width": editable_image.width, "height": editable_image.height,
-                     "file_name": editable_image.file_name, "license": None, "date_captured": editable_image.date_captured}
-            self.images.append(image)
+            self.images.append({"id": image_counter,
+                                "width": editable_image.width,
+                                "height": editable_image.height,
+                                "file_name": editable_image.file_name,
+                                "license": None,
+                                "date_captured": editable_image.date_captured})
             image_counter += 1
 
     def make_id_category_map(self):
@@ -90,7 +120,10 @@ class InfoManager:
     def write_coco(self):
         if self.directory and self.valid:
             path = os.path.join(self.directory, "coco.json")
-            coco = {"info": self.info, "licenses": self.licenses, "categories": self.categories, "images": self.images,
+            coco = {"info": self.info,
+                    "licenses": self.licenses,
+                    "categories": self.categories,
+                    "images": self.images,
                     "annotations": self.annotations}
 
             with open(path, "w") as coco_file:

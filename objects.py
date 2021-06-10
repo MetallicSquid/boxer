@@ -2,7 +2,6 @@ import tkinter as tk
 from PIL import ImageTk, Image
 import os
 from datetime import date
-from time import sleep
 
 
 def find_object_ref(canvas: tk.Canvas, coords: list):
@@ -33,6 +32,7 @@ class EditableImage:
         self.image_render = ImageTk.PhotoImage(self.image)
         self.image_object = None
 
+        self.annotations = []
         self.undo_stack = []
         self.redo_stack = []
 
@@ -51,11 +51,17 @@ class EditableImage:
         return date.today()
 
     # Undo / redo stack actions
+    def pop_annotation(self):
+        return self.annotations.pop()
+
     def pop_undo(self):
         return self.undo_stack.pop()
 
     def pop_redo(self):
         return self.redo_stack.pop()
+
+    def append_annotation(self, annotation):
+        self.annotations.append(annotation)
 
     def append_undo(self, undo: tuple):
         self.undo_stack.append(undo)
@@ -73,12 +79,6 @@ class EditableImage:
 
     def deactivate_image(self):
         self.canvas.delete("all")
-
-
-
-
-
-
 
 
 # Represents a box-label pair on the canvas
@@ -153,6 +153,7 @@ class Segment:
 
     def delete(self):
         self.canvas.delete(self.line_object)
+        self.line_object = None
 
     def get_start(self) -> list:
         return [self.start_x, self.start_y]
@@ -175,11 +176,11 @@ class Polygon:
         self.colour = colour
 
         self.segments = []
-        self.redo = []
         self.segment = Segment(canvas, colour, x, y)
 
         self.vertices = []
-        self.vertices.append([x, y])
+        self.vertices.append(x)
+        self.vertices.append(y)
 
     def draw_segment(self):
         self.segment.draw()
@@ -190,41 +191,33 @@ class Polygon:
     def end_segment(self) -> bool:
         coords = self.segment.get_coords()
 
-        if len(self.vertices) >= 3 and distance(coords[0], coords[1], self.vertices[0][0], self.vertices[0][1]) <= 8:
-            self.segment.adjust(self.vertices[0][0], self.vertices[0][1])
+        if len(self.vertices) >= 6 and distance(coords[0], coords[1], self.vertices[0], self.vertices[1]) <= 8:
+            self.segment.adjust(self.vertices[0], self.vertices[1])
             self.segments.append(self.segment)
-            self.vertices.append([self.vertices[0][0], self.vertices[0][1]])
-            self.segment = None
+            # self.vertices.append([self.vertices[0][0], self.vertices[0][1]])
 
             return True
         else:
             self.segments.append(self.segment)
-            self.vertices.append(coords)
+            self.vertices.append(coords[0])
+            self.vertices.append(coords[1])
             self.segment = Segment(self.canvas, self.colour, coords[0], coords[1])
             self.draw_segment()
 
             return False
 
-    def undo_segment(self):
-        if self.segment:
-            print("There is a segment")
-            self.redo.append(self.segment)
-            self.segment.delete()
-            self.segment = self.segments.pop()
-            coords = self.segment.get_start()
-            self.adjust_segment(coords[0], coords[1])
-            self.vertices.pop()
-        else:
-            print("There isn't a segment")
-            self.segment = self.segments.pop()
-            self.redo.append(self.segment)
-            coords = self.segment.get_start()
-            self.adjust_segment(coords[0], coords[1])
-            self.vertices.pop()
+    def resume_segment(self, x: int, y: int) -> bool:
+        if len(self.segments) - 1 >= 0:
+            last_x, last_y = self.segments[len(self.segments)-1].get_coords()
+            if distance(x, y, last_x, last_y) <= 8:
+                self.segment = Segment(self.canvas, self.colour, last_x, last_y)
+                self.vertices.append(last_x)
+                self.vertices.append(last_y)
+                self.draw_segment()
 
-    def redo_segment(self):
-        self.segment = self.redo.pop()
-        self.segment.draw()
+                return True
+
+        return False
 
     def get_coords(self) -> list:
         return self.vertices
@@ -239,10 +232,13 @@ class Annotation:
 
         self.bbox = None
         self.poly = None
+        self.segment = None
         self.polygons = []
-        self.redo = []
 
     # Bounding box specific methods
+    def is_active_bbox(self):
+        return bool(self.bbox)
+
     def set_bbox(self, bbox: BoundingBox):
         self.bbox = bbox
 
@@ -260,6 +256,9 @@ class Annotation:
     def is_active_polygon(self):
         return bool(self.poly)
 
+    def is_active_segment(self):
+        return bool(self.poly.segment)
+
     def set_polygon(self, polygon: Polygon):
         self.poly = polygon
 
@@ -271,48 +270,55 @@ class Annotation:
         self.state_manager.undo_button['state'] = tk.NORMAL
 
     def end_polygon_segment(self):
+        self.segment = self.poly.segment
         if self.poly.end_segment():
             self.polygons.append(self.poly)
             self.poly = None
 
+    def resume_polygon(self, x: int, y: int) -> bool:
+        return self.poly.resume_segment(x, y)
+
+    # Undo / redo checks
+    def update_annotation_after_undo(self):
+        if not self.poly and self.polygons:
+            self.poly = self.polygons.pop()
+            self.poly.segments.pop()
+            self.poly.segment = None
+            self.poly.vertices.pop()
+            self.poly.vertices.pop()
+        elif self.poly:
+            if self.poly.segments:
+                self.poly.vertices.pop()
+                self.poly.vertices.pop()
+                self.poly.segments.pop()
+            else:
+                self.poly = None
+                self.update_annotation_after_undo()
+        else:
+            self.bbox = None
+
+    def update_annotation_after_redo(self, redo):
+        if type(redo) == BoundingBox:
+            self.bbox = redo
+        elif type(redo) == Segment:
+            if self.poly:
+                self.poly.segment = redo
+                self.end_polygon_segment()
+                if self.poly:
+                    self.poly.segment = None
+            else:
+                self.poly = Polygon(self.canvas, self.colour, 0, 0)
+                self.poly.segment = redo
+
     # General methods
+    def get_bbox(self) -> BoundingBox:
+        return self.bbox
+
+    def get_segment(self) -> Segment:
+        return self.segment
+
     def get_label(self) -> str:
         return self.label
 
     def get_colour(self) -> str:
         return self.colour
-
-    def undo_state(self):
-        self.state_manager.redo_state(self.redo)
-        if not self.polygons and not self.bbox:
-            self.state_manager.undo_button['state'] = tk.DISABLED
-
-    def undo(self) -> bool:
-        if self.poly:
-            self.poly.undo_segment()
-            if not self.poly.segments:
-                self.poly = None
-            self.undo_state()
-
-            return True
-        elif self.polygons:
-            self.poly = self.polygons.pop()
-            self.poly.undo_segment()
-            self.undo_state()
-
-            return True
-        elif self.bbox:
-            self.bbox.delete()
-            self.bbox = None
-            self.undo_state()
-
-            return True
-
-        return False
-
-
-    def redo(self):
-        if self.poly:
-            self.poly.redo_segment()
-
-
