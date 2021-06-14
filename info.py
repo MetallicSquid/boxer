@@ -171,7 +171,10 @@ def load_dir(info_manager: InfoManager):
 
         return "read"
     else:
-        info_manager.colour_map = {"blue": "blue", "lime green": "lime green", "yellow": "yellow", "red": "red",
+        info_manager.colour_map = {"blue": "blue",
+                                   "lime green": "lime green",
+                                   "yellow": "yellow",
+                                   "red": "red",
                                    "deep pink": "deep pink"}
 
         image_types = [".jpg", ".png", ".bmp"]

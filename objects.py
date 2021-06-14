@@ -194,15 +194,15 @@ class Polygon:
         if len(self.vertices) >= 6 and distance(coords[0], coords[1], self.vertices[0], self.vertices[1]) <= 8:
             self.segment.adjust(self.vertices[0], self.vertices[1])
             self.segments.append(self.segment)
-            # self.vertices.append([self.vertices[0][0], self.vertices[0][1]])
 
             return True
         else:
-            self.segments.append(self.segment)
-            self.vertices.append(coords[0])
-            self.vertices.append(coords[1])
-            self.segment = Segment(self.canvas, self.colour, coords[0], coords[1])
-            self.draw_segment()
+            if not self.check_invalid():
+                self.segments.append(self.segment)
+                self.vertices.append(coords[0])
+                self.vertices.append(coords[1])
+                self.segment = Segment(self.canvas, self.colour, coords[0], coords[1])
+                self.draw_segment()
 
             return False
 
@@ -221,6 +221,33 @@ class Polygon:
 
     def get_coords(self) -> list:
         return self.vertices
+
+    def check_invalid(self):
+        def orientation(a, b, c):
+            result = ((b[1] - a[1]) * (c[0] - b[0]))  - ((b[0] - a[0]) * (c[1] - b[1]))
+            if result > 0:
+                return 1
+            elif result < 0:
+                return -1
+            else:
+                return 0
+
+        p1 = self.segment.get_start()
+        p2 = self.segment.get_coords()
+        for segment in self.segments:
+            p3 = segment.get_start()
+            p4 = segment.get_coords()
+
+            if p1 != p4 and p2 != p3:
+                o1 = orientation(p1, p2, p3)
+                o2 = orientation(p1, p2, p4)
+                o3 = orientation(p3, p4, p1)
+                o4 = orientation(p3, p4, p2)
+
+                if o1 != o2 and o3 != o4:
+                    return True
+
+        return False
 
 
 class Annotation:
@@ -271,6 +298,7 @@ class Annotation:
 
     def end_polygon_segment(self):
         self.segment = self.poly.segment
+        print(self.poly.check_invalid())
         if self.poly.end_segment():
             self.polygons.append(self.poly)
             self.poly = None
