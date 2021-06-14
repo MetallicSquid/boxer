@@ -83,7 +83,7 @@ class InfoManager:
                 segmentation = []
                 for polygon in annotation.polygons:
                     # TODO: Set iscrowd=1 if there are multiple polygons here
-                    # TODO: Handle RLE if iscrowd=1/
+                    # TODO: Handle RLE if iscrowd=1
                     segmentation.append(polygon.get_coords())
 
                 self.annotations.append({"id": annotation_counter,

@@ -479,7 +479,8 @@ class ImageManager:
             if self.annotation.is_active_polygon():
                 if not self.annotation.resume_polygon(event.x, event.y):
                     self.annotation.end_polygon_segment()
-                    self.active_image.append_undo(self.annotation.get_segment())
+                    if self.annotation.get_segment() not in self.active_image.undo_stack:
+                        self.active_image.append_undo(self.annotation.get_segment())
             else:
                 self.annotation.set_polygon(Polygon(self.canvas, self.annotation.get_colour(), event.x, event.y))
                 self.annotation.draw_polygon_segment()
