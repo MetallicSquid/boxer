@@ -69,19 +69,36 @@ class InfoEntry:
 
 
 class StateManager:
-    def __init__(self, colour_picker, buttons: tuple):
+    def __init__(self, info_entry: InfoEntry, colour_picker, tool_buttons: tuple):
         self.colour_picker = colour_picker
-        self.open_button = buttons[0]
-        self.undo_button = buttons[1]
-        self.redo_button = buttons[2]
-        self.prev_button = buttons[3]
-        self.next_button = buttons[4]
+        self.info_entry = info_entry
+        self.open_button = tool_buttons[0]
+        self.undo_button = tool_buttons[1]
+        self.redo_button = tool_buttons[2]
+        self.prev_button = tool_buttons[3]
+        self.next_button = tool_buttons[4]
 
-    def colour_picker_state(self):
-        pass
+    def colour_picker_state(self, valid: bool):
+        if valid:
+            self.colour_picker.list_box['state'] = tk.NORMAL
+            self.colour_picker.entry['state'] = tk.NORMAL
+        else:
+            self.colour_picker.list_box['state'] = tk.DISABLED
+            self.colour_picker.entry['state'] = tk.DISABLED
 
-    def open_state(self):
-        pass
+    def info_entry_state(self, valid: bool):
+        if valid:
+            self.info_entry.year_entry['state'] = tk.NORMAL
+            self.info_entry.version_entry['state'] = tk.NORMAL
+            self.info_entry.description_entry['state'] = tk.NORMAL
+            self.info_entry.contributor_entry['state'] = tk.NORMAL
+            self.info_entry.url_entry['state'] = tk.NORMAL
+        else:
+            self.info_entry.year_entry['state'] = tk.DISABLED
+            self.info_entry.version_entry['state'] = tk.DISABLED
+            self.info_entry.description_entry['state'] = tk.DISABLED
+            self.info_entry.contributor_entry['state'] = tk.DISABLED
+            self.info_entry.url_entry['state'] = tk.DISABLED
 
     def undo_state(self, undo_stack: list):
         if undo_stack:
@@ -107,7 +124,7 @@ class StateManager:
         else:
             self.next_button['state'] = tk.NORMAL
 
-    def deactivate_buttons(self):
+    def deactivate_tool_buttons(self):
         self.undo_button['state'] = tk.DISABLED
         self.redo_button['state'] = tk.DISABLED
         self.prev_button['state'] = tk.DISABLED
@@ -123,6 +140,10 @@ class ToolBar:
         self.status_bar = status_bar
         self.state_handler = state_handler
         self.info_manager = InfoManager()
+
+        self.state_handler.deactivate_tool_buttons()
+        self.state_handler.colour_picker_state(False)
+        self.state_handler.info_entry_state(False)
 
         self.open_button = buttons[0]
         self.open_button.configure(command=self.open_pressed)
@@ -151,15 +172,20 @@ class ToolBar:
 
         dir_info = load_dir(self.info_manager)
         if dir_info == "cancelled":
-            self.info_manager.set_valid(False)
             print("The `🔍 Open` action was cancelled")
         elif dir_info == "invalid":
             self.info_manager.set_valid(False)
+            self.state_handler.colour_picker_state(False)
+            self.state_handler.info_entry_state(False)
+            self.state_handler.deactivate_tool_buttons()
+
             self.image_manager.draw_invalid()
         elif dir_info == "read":
             self.info_manager.set_valid(True)
             self.info_entry.set_info(self.info_manager.info)
             self.image_manager.load_canvas(self.info_manager)
+            self.state_handler.colour_picker_state(True)
+            self.state_handler.info_entry_state(True)
             self.colour_picker.remap_colour_picker(self.info_manager)
 
             self.state_handler.undo_state(self.image_manager.active_image.undo_stack)
@@ -171,6 +197,8 @@ class ToolBar:
         elif type(dir_info) == list:
             self.info_manager.set_valid(True)
             self.image_manager.new_canvas(dir_info, self.info_manager)
+            self.state_handler.colour_picker_state(True)
+            self.state_handler.info_entry_state(True)
             self.colour_picker.remap_colour_picker(self.info_manager)
 
             self.state_handler.undo_state(self.image_manager.active_image.undo_stack)
@@ -311,7 +339,7 @@ class ImageManager:
         self.editable_images = []
         self.image_pointer = 0
 
-        self.state_manager.deactivate_buttons()
+        self.state_manager.deactivate_tool_buttons()
 
     def deactivate_canvas(self):
         self.canvas.unbind("<ButtonPress-1>")

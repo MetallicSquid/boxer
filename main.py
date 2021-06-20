@@ -60,9 +60,9 @@ b_prev = tk.Button(tool_frame, text="⏮️ Prev")
 b_prev.grid(row=5, column=1)
 b_next = tk.Button(tool_frame, text="⏭ Next️")
 b_next.grid(row=5, column=2)
-buttons = (b_open, b_undo, b_redo, b_prev, b_next)
+tool_buttons = (b_open, b_undo, b_redo, b_prev, b_next)
 
-state_handler = StateManager(colour_picker, buttons)
+state_handler = StateManager(info_entry, colour_picker, tool_buttons)
 
 # The canvas on the left / middle of the screen
 image_frame = tk.Frame(root)
@@ -71,7 +71,7 @@ canvas = tk.Canvas(image_frame, width=600, height=300, bg="white", bd=5, relief=
 canvas.pack(fill=tk.BOTH, expand=True)
 image_manager = ImageManager(canvas, colour_picker, status_bar, state_handler)
 
-tool_bar = ToolBar(image_manager, info_entry, colour_picker, buttons, status_bar, state_handler)
+tool_bar = ToolBar(image_manager, info_entry, colour_picker, tool_buttons, status_bar, state_handler)
 
 
 def safe_quit():
