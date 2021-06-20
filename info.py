@@ -3,6 +3,8 @@ from datetime import date
 import json
 import os
 
+from operations import vertices_to_rle
+
 
 class InfoManager:
     def __init__(self):
@@ -39,21 +41,6 @@ class InfoManager:
                      "date_created": str(date.today())}
 
     # TODO: Handle annotation iscrowd
-
-    '''
-    RLE is handled by looping over all of the pixels in the image and seeing if a given pixel lies within the bounding
-    polygon. The segmentation field ends up having two lists - size and counts. Size depicts the size of the image.
-    Counts is a list of the number of pixels that are valid and are not valid for a given annotation, it might look like
-    [147, 4, 32, 17, 123, 8, ...]
-     NV   V  NV  V   NV   V  ...
-     
-     In order to support this, I first need to write an efficient algorithm for detecting whether two lines intersect,
-     and then using this determine whether a point lies within a polygon by counting the number of intersections on a 
-     given plane.
-     
-     (Maybe handle supercategories first)
-    '''
-
     # TODO: Handle category supercategory
 
     # Fills all possible fields based on accessible information
@@ -80,11 +67,20 @@ class InfoManager:
                                             "supercategory": None})
                     category_counter += 1
 
-                segmentation = []
-                for polygon in annotation.polygons:
-                    # TODO: Set iscrowd=1 if there are multiple polygons here
-                    # TODO: Handle RLE if iscrowd=1
-                    segmentation.append(polygon.get_coords())
+                # FIXME: This is a naive interpretation of iscrowd, as a non-crowd object can have multiple polygons too
+                if len(annotation.polygons) > 1:
+                    is_crowd = True
+                    size = [editable_image.width, editable_image.height]
+                    counts = []
+                    for polygon in annotation.polygons:
+                        poly_coords = polygon.get_coords()
+                        vertices = list(zip(poly_coords[::2], poly_coords[1::2]))
+                        counts += vertices_to_rle(bbox, vertices)
+
+                    segmentation = {"counts": counts, "size": size}
+                else:
+                    is_crowd = False
+                    segmentation = annotation.polygons[0].get_coords()
 
                 self.annotations.append({"id": annotation_counter,
                                          "image_id": image_counter,
@@ -92,7 +88,7 @@ class InfoManager:
                                          "segmentation": segmentation,
                                          "area": area,
                                          "bbox": bbox,
-                                         "iscrowd": None})
+                                         "iscrowd": is_crowd})
                 annotation_counter += 1
 
             self.images.append({"id": image_counter,
