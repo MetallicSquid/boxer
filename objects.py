@@ -24,65 +24,6 @@ def find_label_refs(canvas: tk.Canvas, label: str):
     return ref_list
 
 
-# Represents each instance of an image that can be edited
-class EditableImage:
-    def __init__(self, image_path, canvas: tk.Canvas):
-        self.image_path = image_path
-        self.canvas = canvas
-
-        self.image = Image.open(image_path)
-        self.image_render = ImageTk.PhotoImage(self.image)
-        self.image_object = None
-
-        self.annotations = []
-        self.undo_stack = []
-        self.redo_stack = []
-
-        self.width = self.image.width
-        self.height = self.image.height
-        self.file_name = os.path.basename(image_path)
-        self.date_captured = self.get_date_captured()
-
-    def get_date_captured(self):
-        exif_data = self.image.getexif()
-        for tag_id in exif_data:
-            if tag_id == 36867:
-                return exif_data.get(tag_id)
-
-        print(f"Date_created could not be found for {self.file_name}, defaulting to {date.today()}")
-        return date.today()
-
-    # Undo / redo stack actions
-    def pop_annotation(self):
-        return self.annotations.pop()
-
-    def pop_undo(self):
-        return self.undo_stack.pop()
-
-    def pop_redo(self):
-        return self.redo_stack.pop()
-
-    def append_annotation(self, annotation):
-        self.annotations.append(annotation)
-
-    def append_undo(self, undo: tuple):
-        self.undo_stack.append(undo)
-
-    def append_redo(self, redo: tuple):
-        self.redo_stack.append(redo)
-
-    # Image changes
-    def activate_image(self):
-        self.canvas.configure(width=self.width, height=self.height)
-        self.image_object = self.canvas.create_image(self.width/2, self.height/2, image=self.image_render,
-                                                     anchor=tk.CENTER)
-        for undo in self.undo_stack:
-            undo.draw()
-
-    def deactivate_image(self):
-        self.canvas.delete("all")
-
-
 # Represents a box-label pair on the canvas
 class BoundingBox:
     def __init__(self, canvas: tk.Canvas, coords: list, label: str, colour: str):
@@ -199,14 +140,13 @@ class Polygon:
 
             return True
         else:
-            if not self.check_invalid():
-                self.segments.append(self.segment)
-                self.vertices.append(coords[0])
-                self.vertices.append(coords[1])
-                self.segment = Segment(self.canvas, self.colour, coords[0], coords[1])
-                self.draw_segment()
+            self.segments.append(self.segment)
+            self.vertices.append(coords[0])
+            self.vertices.append(coords[1])
+            self.segment = Segment(self.canvas, self.colour, coords[0], coords[1])
+            self.draw_segment()
 
-                return False
+        return False
 
     def resume_segment(self, x: int, y: int) -> bool:
         if len(self.segments) - 1 >= 0:
@@ -239,16 +179,20 @@ class Polygon:
 
 
 class Annotation:
-    def __init__(self, canvas: tk.Canvas, state_manager, label: str, colour: str):
+    def __init__(self, canvas: tk.Canvas, state_manager):
         self.canvas = canvas
         self.state_manager = state_manager
-        self.label = label
-        self.colour = colour
+        self.label = None
+        self.colour = None
 
         self.bbox = None
         self.poly = None
         self.segment = None
         self.polygons = []
+
+    def set_label(self, label: str, colour: str):
+        self.label = label
+        self.colour = colour
 
     # Bounding box specific methods
     def is_active_bbox(self):
@@ -286,9 +230,11 @@ class Annotation:
 
     def end_polygon_segment(self):
         self.segment = self.poly.segment
-        if self.poly.end_segment():
-            self.polygons.append(self.poly)
-            self.poly = None
+        if not self.poly.check_invalid():
+            if self.poly.end_segment():
+                self.polygons.append(self.poly)
+                self.poly = None
+                self.canvas.unbind("<Motion>")
 
     def resume_polygon(self, x: int, y: int) -> bool:
         return self.poly.resume_segment(x, y)
@@ -337,3 +283,63 @@ class Annotation:
 
     def get_colour(self) -> str:
         return self.colour
+
+
+# Represents each instance of an image that can be edited
+class EditableImage:
+    def __init__(self, image_path, canvas: tk.Canvas, state_manager):
+        self.image_path = image_path
+        self.canvas = canvas
+
+        self.image = Image.open(image_path)
+        self.image_render = ImageTk.PhotoImage(self.image)
+        self.image_object = None
+
+        self.annotation = Annotation(canvas, state_manager)
+        self.annotations = []
+        self.undo_stack = []
+        self.redo_stack = []
+
+        self.width = self.image.width
+        self.height = self.image.height
+        self.file_name = os.path.basename(image_path)
+        self.date_captured = self.get_date_captured()
+
+    def get_date_captured(self):
+        exif_data = self.image.getexif()
+        for tag_id in exif_data:
+            if tag_id == 36867:
+                return exif_data.get(tag_id)
+
+        print(f"Date_created could not be found for {self.file_name}, defaulting to {date.today()}")
+        return date.today()
+
+    # Undo / redo stack actions
+    def pop_annotation(self):
+        return self.annotations.pop()
+
+    def pop_undo(self):
+        return self.undo_stack.pop()
+
+    def pop_redo(self):
+        return self.redo_stack.pop()
+
+    def append_annotation(self, annotation):
+        self.annotations.append(annotation)
+
+    def append_undo(self, undo: tuple):
+        self.undo_stack.append(undo)
+
+    def append_redo(self, redo: tuple):
+        self.redo_stack.append(redo)
+
+    # Image changes
+    def activate_image(self):
+        self.canvas.configure(width=self.width, height=self.height)
+        self.image_object = self.canvas.create_image(self.width/2, self.height/2, image=self.image_render,
+                                                     anchor=tk.CENTER)
+        for undo in self.undo_stack:
+            undo.draw()
+
+    def deactivate_image(self):
+        self.canvas.delete("all")

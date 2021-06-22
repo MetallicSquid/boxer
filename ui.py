@@ -5,6 +5,7 @@ from collections import defaultdict
 
 from info import InfoManager, load_dir
 from objects import EditableImage, Annotation, BoundingBox, Polygon
+from operations import adjust_point
 
 
 def write_entry(entry, string: str):
@@ -305,8 +306,6 @@ class ImageManager:
         self.editable_images = []
         self.active_image = None
 
-        self.annotation = None
-
         self.draw_startup()
 
     # Placeholder screens
@@ -374,7 +373,7 @@ class ImageManager:
         self.canvas_state(history_manager)
 
         for image_path in image_paths:
-            editable_image = EditableImage(image_path, self.canvas)
+            editable_image = EditableImage(image_path, self.canvas, self.state_manager)
             self.editable_images.append(editable_image)
             self.set_tool_bbox()
 
@@ -431,9 +430,9 @@ class ImageManager:
         undo.delete()
         self.active_image.append_redo(undo)
         self.state_manager.redo_state(self.active_image.redo_stack)
-        self.annotation.update_annotation_after_undo()
+        self.active_image.annotation.update_annotation_after_undo()
 
-        if not self.annotation.is_active_bbox():
+        if not self.active_image.annotation.is_active_bbox():
             self.set_tool_bbox()
             self.active_image.annotations.pop()
 
@@ -443,7 +442,7 @@ class ImageManager:
         redo.draw()
         self.active_image.append_undo(redo)
         self.state_manager.undo_state(self.active_image.undo_stack)
-        self.annotation.update_annotation_after_redo(redo)
+        self.active_image.annotation.update_annotation_after_redo(redo)
 
     # Tool changes
     def set_tool_bbox(self):
@@ -456,7 +455,6 @@ class ImageManager:
     def set_tool_polygon(self):
         self.deactivate_canvas()
         self.canvas.bind("<ButtonPress-1>", self.poly_on_mouse_press)
-        self.canvas.bind("<Motion>", self.poly_on_mouse_move)
         self.canvas.bind("<ButtonPress-3>", self.end_annotation)
         self.colour_picker.entry.bind("<KeyRelease>", self.update_labels)
 
@@ -478,49 +476,69 @@ class ImageManager:
 
     # Bounding box actions
     def bbox_on_mouse_press(self, event: tk.Event):
-        self.annotation = Annotation(self.canvas, self.state_manager, self.colour_picker.label, self.colour_picker.colour)
-        self.annotation.set_bbox(BoundingBox(self.canvas, [event.x, event.y, event.x, event.y], self.colour_picker.label,
-                                             self.colour_picker.colour))
-        self.annotation.draw_bbox()
+        self.active_image.annotation = Annotation(self.canvas, self.state_manager)
+        self.active_image.annotation.set_label(self.colour_picker.label, self.colour_picker.colour)
+        self.active_image.annotation.set_bbox(BoundingBox(self.canvas, [event.x, event.y, event.x, event.y],
+                                                          self.colour_picker.label, self.colour_picker.colour))
+        self.active_image.annotation.draw_bbox()
 
     def bbox_on_mouse_move(self, event: tk.Event):
-        self.annotation.adjust_bbox(event.x, event.y)
+        x, y = adjust_point((event.x, event.y), self.active_image.width, self.active_image.height)
+        start_x, start_y = self.active_image.annotation.bbox.get_coords()[:2]
+        if x < start_x and y < start_y:
+            self.active_image.annotation.bbox.start_x = x
+            self.active_image.annotation.bbox.start_y = y
+        elif x < start_x:
+            self.active_image.annotation.bbox.start_x = x
+        elif y < start_y:
+            self.active_image.annotation.bbox.start_y = y
+        self.active_image.annotation.adjust_bbox(x, y)
 
     def bbox_on_mouse_release(self, _event: tk.Event):
-        self.active_image.append_undo(self.annotation.get_bbox())
-        self.active_image.append_annotation(self.annotation)
+        self.active_image.append_undo(self.active_image.annotation.get_bbox())
+        self.active_image.append_annotation(self.active_image.annotation)
 
         self.set_tool_polygon()
 
-        self.status_bar.update_action(f"Created `{self.annotation.get_label()}` bounding box at {self.annotation.get_bbox_coords()}")
+        self.status_bar.update_action(f"Created `{self.active_image.annotation.get_label()}` bounding box at {self.active_image.annotation.get_bbox_coords()}")
 
         self.active_image.redo_stack = []
         self.state_manager.undo_state(self.active_image.undo_stack)
         self.state_manager.redo_state(self.active_image.redo_stack)
 
     # Polygon actions
+    def adjust_poly_point(self, event: tk.Event):
+        bbox = self.active_image.annotation.bbox.get_coords()
+        width = bbox[2] - bbox[0]
+        height = bbox[3] - bbox[1]
+        return adjust_point((event.x, event.y), width, height, rel_x=bbox[0], rel_y=bbox[1])
+
     def poly_on_mouse_press(self, event: tk.Event):
-        if not self.annotation.bbox:
+        if not self.active_image.annotation.bbox:
             self.set_tool_bbox()
             self.bbox_on_mouse_press(event)
         else:
-            if self.annotation.is_active_polygon():
-                if not self.annotation.resume_polygon(event.x, event.y):
-                    self.annotation.end_polygon_segment()
-                    if self.annotation.get_segment() not in self.active_image.undo_stack:
-                        self.active_image.append_undo(self.annotation.get_segment())
+            if self.active_image.annotation.is_active_polygon():
+                if not self.active_image.annotation.resume_polygon(event.x, event.y):
+                    self.active_image.annotation.end_polygon_segment()
+                    if self.active_image.annotation.get_segment() not in self.active_image.undo_stack:
+                        self.active_image.append_undo(self.active_image.annotation.get_segment())
             else:
-                self.annotation.set_polygon(Polygon(self.canvas, self.annotation.get_colour(), event.x, event.y))
-                self.annotation.draw_polygon_segment()
+                x, y = self.adjust_poly_point(event)
+                if x == event.x and y == event.y:
+                    self.active_image.annotation.set_polygon(Polygon(self.canvas, self.active_image.annotation.get_colour(), x, y))
+                    self.active_image.annotation.draw_polygon_segment()
+                    self.canvas.bind("<Motion>", self.poly_on_mouse_move)
 
         self.active_image.redo_stack = []
         self.state_manager.undo_state(self.active_image.undo_stack)
         self.state_manager.redo_state(self.active_image.redo_stack)
 
     def poly_on_mouse_move(self, event: tk.Event):
-        if self.annotation.is_active_polygon():
-            if self.annotation.is_active_segment():
-                self.annotation.adjust_polygon_segment(event.x, event.y)
+        if self.active_image.annotation.is_active_polygon():
+            if self.active_image.annotation.is_active_segment():
+                x, y = self.adjust_poly_point(event)
+                self.active_image.annotation.adjust_polygon_segment(x, y)
 
     def end_annotation(self, _event: tk.Event):
         self.set_tool_bbox()
