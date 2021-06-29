@@ -139,12 +139,6 @@ class Polygon:
             self.segments.append(self.segment)
 
             return True
-        else:
-            self.segments.append(self.segment)
-            self.vertices.append(coords[0])
-            self.vertices.append(coords[1])
-            self.segment = Segment(self.canvas, self.colour, coords[0], coords[1])
-            self.draw_segment()
 
         return False
 
@@ -230,11 +224,18 @@ class Annotation:
 
     def end_polygon_segment(self):
         self.segment = self.poly.segment
-        if not self.poly.check_invalid():
-            if self.poly.end_segment():
-                self.polygons.append(self.poly)
-                self.poly = None
-                self.canvas.unbind("<Motion>")
+        coords = self.segment.get_coords()
+
+        if self.poly.end_segment():
+            self.polygons.append(self.poly)
+            self.poly = None
+            self.canvas.unbind("<Motion>")
+        elif not self.poly.check_invalid():
+            self.poly.segments.append(self.segment)
+            self.poly.vertices.append(coords[0])
+            self.poly.vertices.append(coords[1])
+            self.poly.segment = Segment(self.canvas, self.colour, coords[0], coords[1])
+            self.poly.draw_segment()
 
     def resume_polygon(self, x: int, y: int) -> bool:
         return self.poly.resume_segment(x, y)

@@ -432,6 +432,9 @@ class ImageManager:
         self.state_manager.redo_state(self.active_image.redo_stack)
         self.active_image.annotation.update_annotation_after_undo()
 
+        if type(undo) != BoundingBox:
+            self.canvas.bind("<Motion>", self.poly_on_mouse_move)
+
         if not self.active_image.annotation.is_active_bbox():
             self.set_tool_bbox()
             self.active_image.annotations.pop()
